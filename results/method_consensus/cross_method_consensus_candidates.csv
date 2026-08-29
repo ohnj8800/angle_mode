@@ -1,0 +1,17 @@
+﻿consensus_cluster_id,angle_state_label,consensus_level,method_count,supporting_methods,member_event_count,cluster_start_time_s,cluster_end_time_s,representative_time_s,representative_frequency_hz,frequency_low_hz,frequency_high_hz,maximum_anomaly_score,interpretation
+C008,stable_10deg,two_method_consensus,2,"AVMD,STVMD",2,18.0,20.495,19.0,48.5,48.5,48.5,6.7449075947659525,cross_method_anomaly_candidate
+C011,stable_10deg,two_method_consensus,2,"IOVMD,VMD",3,19.5,23.495,21.0,17.5,17.0,17.5,6.508335755267509,cross_method_anomaly_candidate
+C026,stable_43deg,four_method_consensus,4,"AVMD,IOVMD,STVMD,SVMD",4,69.5,85.495,81.5,16.0,16.0,16.0,7.686862824319449,cross_method_anomaly_candidate
+C027,stable_43deg,two_method_consensus,2,"AVMD,SVMD",2,74.5,77.495,75.75,96.0,96.0,96.0,8.093889113719143,cross_method_anomaly_candidate
+C030,stable_43deg,two_method_consensus,2,"IOVMD,VMD",2,79.0,82.495,80.5,36.0,36.0,36.0,4.633693026335258,cross_method_anomaly_candidate
+C029,stable_43deg,two_method_consensus,2,"AVMD,SVMD",2,79.0,81.495,80.0,89.0,89.0,89.0,4.046944556859572,cross_method_anomaly_candidate
+C035,stable_10deg,two_method_consensus,2,"IOVMD,STVMD",2,94.5,97.495,95.75,3.5,3.5,3.5,6.796869772603942,cross_method_anomaly_candidate
+C036,stable_10deg,two_method_consensus,2,"STVMD,SVMD",3,94.5,105.495,100.0,35.0,34.75,35.5,6.7449075947659525,cross_method_anomaly_candidate
+C037,stable_10deg,five_method_consensus,5,"AVMD,IOVMD,STVMD,SVMD,VMD",5,95.5,98.995,97.0,80.0,80.0,80.0,4.985621711050707,cross_method_anomaly_candidate
+C039,stable_10deg,two_method_consensus,2,"IOVMD,VMD",4,108.0,113.995,111.75,17.5,16.75,17.5,4.122332191642026,cross_method_anomaly_candidate
+C040,stable_10deg,two_method_consensus,2,"STVMD,SVMD",2,109.0,111.995,110.0,36.5,36.5,36.5,4.046944556859572,cross_method_anomaly_candidate
+C053,stable_43deg,two_method_consensus,2,"IOVMD,VMD",2,167.0,169.495,168.0,32.5,32.5,32.5,4.046944556859572,cross_method_anomaly_candidate
+C056,stable_10deg,two_method_consensus,2,"STVMD,SVMD",7,196.5,229.995,211.5,35.0,35.0,36.0,6.7449075947659525,cross_method_anomaly_candidate
+C062,stable_10deg,three_method_consensus,3,"IOVMD,STVMD,SVMD",3,205.5,208.495,206.5,69.0,69.0,69.0,4.721435316336167,cross_method_anomaly_candidate
+C065,stable_10deg,three_method_consensus,3,"AVMD,STVMD,VMD",3,217.5,226.495,222.0,60.0,60.0,60.0,4.046944556859572,cross_method_anomaly_candidate
+C068,stable_10deg,two_method_consensus,2,"IOVMD,VMD",2,223.0,225.995,224.0,38.5,38.5,38.5,6.0,cross_method_anomaly_candidate

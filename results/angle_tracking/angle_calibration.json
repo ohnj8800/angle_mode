@@ -1,0 +1,19 @@
+{
+  "source_file": "angle_10deg_43deg_repeat.csv",
+  "sampling_rate_hz": 200.0,
+  "sample_count": 46016,
+  "duration_s": 230.075,
+  "angle_component_cutoff_hz": 0.1,
+  "known_angles_deg": [
+    10.0,
+    43.0
+  ],
+  "detected_transition_count": 4,
+  "wavelength_at_lower_angle_nm": 1549.9100193531651,
+  "wavelength_at_upper_angle_nm": 1549.666267959949,
+  "slope_deg_per_nm": -135.38384156326703,
+  "stable_derivative_limit_nm_s": 0.003874188030295045,
+  "stable_sample_count": 29310,
+  "low_frequency_recurrence_candidate_hz": 0.008692628650904033,
+  "calibration_scope": "two known angles in this recording only"
+}

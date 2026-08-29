@@ -1,0 +1,3 @@
+﻿band_id,frequency_low_hz,frequency_high_hz,representative_frequency_hz,supporting_methods,supporting_method_count,mean_corrected_response_ratio,interpretation
+1,35.626738525730175,39.90785813630041,37.7672983310153,"AVMD, IOVMD, SVMD, VMD",4,1.1368148144101031,cross_method_angle_movement_response_band
+3,72.63125869262865,72.63125869262865,72.63125869262865,"IOVMD, VMD",2,1.1408414182453654,cross_method_angle_movement_response_band

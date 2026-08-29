@@ -1,0 +1,20 @@
+{
+  "method": "SVMD",
+  "analysis_band_hz": [
+    0.0043463143254520165,
+    100.0
+  ],
+  "angle_source": "lowest VMD mode validated against a DC-preserving 0.1-Hz component",
+  "angle_mode": "IMF1",
+  "angle_mode_correlation": 0.9721085660487244,
+  "mode_count": 10,
+  "motion_sensitive_candidate_count": 1,
+  "maximum_alpha": 1000.0,
+  "sequential_mode_count": 10,
+  "stop_reason": "reconstruction_power_tolerance",
+  "parameter_rule": "validated SVMD setting; sequential stopping determines K",
+  "reconstruction_correlation": 0.9977144168591587,
+  "relative_reconstruction_error": 0.06917269074761466,
+  "reconstruction_rmse_nm": 0.011129732955511786,
+  "passes_correlation_threshold_0_90": true
+}

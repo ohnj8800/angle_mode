@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mplconfig/
+.vscode/
+.idea/
+*.rar
+*.zip
+.DS_Store
+Thumbs.db

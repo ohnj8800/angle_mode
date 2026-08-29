@@ -1,0 +1,31 @@
+{
+  "method": "VMD",
+  "analysis_band_hz": [
+    0.0043463143254520165,
+    100.0
+  ],
+  "angle_source": "lowest VMD mode validated against a DC-preserving 0.1-Hz component",
+  "angle_mode": "IMF1",
+  "angle_mode_correlation": 0.9820161311313202,
+  "mode_count": 10,
+  "motion_sensitive_candidate_count": 1,
+  "alpha": 2000.0,
+  "fixed_mode_count": 10,
+  "initial_center_frequencies_hz": [
+    0.0043463143254520165,
+    10.559418946067069,
+    21.114491577808685,
+    31.669564209550302,
+    42.22463684129192,
+    52.779709473033535,
+    63.33478210477515,
+    73.88985473651677,
+    84.44492736825838,
+    95.0
+  ],
+  "parameter_rule": "fixed K=10 and alpha=2000 with uniform initialization",
+  "reconstruction_correlation": 0.9925537612468222,
+  "relative_reconstruction_error": 0.12598847748934536,
+  "reconstruction_rmse_nm": 0.020271267385623216,
+  "passes_correlation_threshold_0_90": true
+}

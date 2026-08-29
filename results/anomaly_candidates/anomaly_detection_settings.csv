@@ -1,0 +1,2 @@
+﻿candidate_threshold_robust_deviations,minimum_consecutive_windows,scored_features,combined_score,excluded_periods,excluded_mode,interpretation,baseline_limitation
+3.5,2,"local_peak_frequency_hz, rms_nm, envelope_mean_nm",maximum feature deviation score,angle movement and mixed-state windows,angle_position_mode,candidate only; not a confirmed fault,internal stable windows from the same recording

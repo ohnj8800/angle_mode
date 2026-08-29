@@ -1,0 +1,17 @@
+﻿physical_episode_id,consensus_cluster_id,representative_time_s,representative_frequency_hz,method_count,supporting_methods,consensus_level
+E001,C008,19.0,48.5,2,"AVMD,STVMD",two_method_consensus
+E001,C011,21.0,17.5,2,"IOVMD,VMD",two_method_consensus
+E002,C026,81.5,16.0,4,"AVMD,IOVMD,STVMD,SVMD",four_method_consensus
+E002,C027,75.75,96.0,2,"AVMD,SVMD",two_method_consensus
+E002,C030,80.5,36.0,2,"IOVMD,VMD",two_method_consensus
+E002,C029,80.0,89.0,2,"AVMD,SVMD",two_method_consensus
+E003,C035,95.75,3.5,2,"IOVMD,STVMD",two_method_consensus
+E003,C036,100.0,35.0,2,"STVMD,SVMD",two_method_consensus
+E003,C037,97.0,80.0,5,"AVMD,IOVMD,STVMD,SVMD,VMD",five_method_consensus
+E004,C039,111.75,17.5,2,"IOVMD,VMD",two_method_consensus
+E004,C040,110.0,36.5,2,"STVMD,SVMD",two_method_consensus
+E005,C053,168.0,32.5,2,"IOVMD,VMD",two_method_consensus
+E006,C056,211.5,35.0,2,"STVMD,SVMD",two_method_consensus
+E006,C062,206.5,69.0,3,"IOVMD,STVMD,SVMD",three_method_consensus
+E006,C065,222.0,60.0,3,"AVMD,STVMD,VMD",three_method_consensus
+E006,C068,224.0,38.5,2,"IOVMD,VMD",two_method_consensus

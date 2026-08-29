@@ -1,0 +1,2 @@
+﻿maximum_time_gap_s,minimum_frequency_tolerance_hz,relative_frequency_tolerance,matching_rule,five_method_meaning,four_method_meaning,three_method_meaning,two_method_meaning,single_method_meaning
+1.0,1.0,0.05,same angle state; different method; close in time and frequency,strongest repeatability; still not a confirmed fault,high repeatability; still not a confirmed fault,moderate cross-method support,partial cross-method support,method-sensitive candidate requiring review

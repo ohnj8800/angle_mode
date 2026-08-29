@@ -1,0 +1,3 @@
+﻿target_frequency_hz,late_segment_id,previous_segment_count,previous_median_band_rms_nm,late_median_band_rms_nm,late_to_previous_rms_ratio,previous_median_local_peak_frequency_hz,late_median_local_peak_frequency_hz,late_peak_frequency_shift_hz,interpretation
+38.5,10deg_3,2,0.015184050688605488,0.012236165224119307,0.8058564526066466,39.84375,35.15625,-4.6875,descriptive cycle difference; not a fault label
+60.0,10deg_3,2,0.010410842926351922,0.014904117135116163,1.431595620119342,60.15625,60.15625,0.0,descriptive cycle difference; not a fault label

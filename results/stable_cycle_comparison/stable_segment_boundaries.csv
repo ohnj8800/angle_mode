@@ -1,0 +1,6 @@
+﻿segment_id,angle_state_label,cycle_index_within_state,segment_start_time_s,segment_end_time_s,segment_duration_s,analysis_start_time_s,analysis_end_time_s
+10deg_1,stable_10deg,1,0.0,31.01,31.01,5.0,26.01
+43deg_1,stable_43deg,1,37.765,87.785,50.019999999999996,42.765,82.785
+10deg_2,stable_10deg,2,94.255,131.235,36.98000000000002,99.255,126.23500000000001
+43deg_2,stable_43deg,2,137.7,183.655,45.95500000000001,142.7,178.655
+10deg_3,stable_10deg,3,196.32,230.075,33.754999999999995,201.32,225.075

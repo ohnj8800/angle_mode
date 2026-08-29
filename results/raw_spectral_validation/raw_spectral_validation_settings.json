@@ -1,0 +1,13 @@
+{
+  "method": "sliding Welch PSD on raw-derived 0.5-Hz high-pass signal; no VMD",
+  "sampling_rate_hz": 200.0,
+  "window_duration_s": 2.0,
+  "step_duration_s": 0.5,
+  "welch_segment_samples": 256,
+  "welch_overlap_samples": 128,
+  "band_half_width_hz": 1.5,
+  "peak_search_half_width_hz": 5.0,
+  "score_threshold": 3.5,
+  "minimum_consecutive_windows": 2,
+  "baseline": "all other fully stable windows from the same angle state as each episode, with a 3-second event guard"
+}

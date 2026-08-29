@@ -1,0 +1,2 @@
+﻿baseline_source,edge_guard_s,moving_fraction_required,states,statistics,independent_validation_baseline
+stable windows in angle-repeat dataset,5.0,0.0,"stable_10deg, stable_43deg","median, MAD, robust_sigma, q05-q95",False
