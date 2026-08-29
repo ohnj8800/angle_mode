@@ -1,93 +1,96 @@
-# FBG角度模態與VMD動態分析
+# FBG 角度狀態與 VMD 模態分析
 
-本專案使用FBG Bragg波長訊號，辨識10°與43°角度狀態、角度切換時間，
-並比較IOVMD、AVMD與SVMD所分離的動態模態頻率及移動響應。
+本專案分析 FBG CH1 波長訊號，利用 VMD、IOVMD、AVMD、SVMD 與 STVMD 拆解不同頻率模態，並比較模態與角度移動、穩定角度及不同循環之間的關係。
 
-## 研究定義
+程式會找出值得後續檢查的頻率與時間區段，但輸出的「異常候選」不等同於設備故障。
 
-- 10D代表10°，43D代表43°。
-- 10°與43°都是正常角度狀態，不把43°直接視為異常。
-- 沒有外部角度時間標記，角度切換由低頻波長成分自行辨識。
-- 異常偵測必須等正常角度位置與正常移動模態建立後再進行。
+## 環境需求
 
-## 分析流程
-
-```text
-原始FBG訊號
-  ├─ DC與0.1 Hz以下低頻成分 → 10°/43°估計與切換事件偵測
-  ├─ 0.5–100 Hz動態成分 → VMD參數與動態中心頻率選擇
-  └─ 保留DC的中心化完整訊號 → IOVMD / AVMD / SVMD
-                                      ↓
-                   角度位置模態 + 各動態IMF頻率與能量
-                                      ↓
-                         移動期間 / 穩定期間比較
-```
-
-角度路徑不執行線性去趨勢或0.5 Hz高通，避免刪除角度平台。
-0.5 Hz高通訊號只用來選擇動態模態的參數；最終VMD輸入仍保留
-低頻角度成分，使角度位置模態與動態模態可在同一次分解中辨識。
-
-## 資料
-
-將下列原始CSV放入`data/raw/`：
-
-- `angle_10deg_43deg_repeat.csv`
-- `angle_10deg_stable.csv`
-
-CSV欄位必須包含：
-
-```text
-time,CH1
-```
-
-取樣率設定為200 Hz。
-
-## 執行
-
-安裝套件：
+- Windows 10/11
+- Python 3
+- CSV 資料至少包含時間與 `CH1` 欄位
 
 ```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-執行完整流程：
+## 輸入資料
 
-```powershell
-python run_angle_analysis.py
+預設資料放在 `data/raw/`：
+
+```text
+angle_10deg_43deg_repeat.csv
+angle_10deg_stable.csv
 ```
 
-也可以逐步執行：
+更換資料時，需要確認：
+
+- 時間欄位及 `CH1` 欄位名稱正確
+- 時間值遞增且沒有大量缺值
+- 取樣率與程式設定一致
+- 實驗包含可辨識的穩定角度與角度切換區段
+
+## 執行方式
+
+在專案根目錄執行全部分析：
 
 ```powershell
-python scripts\01_check_data.py
-python scripts\02_track_angle.py
-python scripts\03_analyze_vmd_modes.py
+python .\run_all_analysis.py
 ```
 
-第三步會執行三種VMD，所需時間較長。
+執行指定範圍：
 
-## 主要輸出
+```powershell
+python .\run_all_analysis.py --from-step 10 --to-step 13
+```
 
-`results/angle_tracking/`：
+略過選配的第 04 步：
 
-- `01_angle_component.png`：原始波長與角度低頻成分
-- `02_estimated_angle_timeline.png`：估計角度時間序列
-- `03_angle_transition_detection.png`：角度變化速度與事件區段
-- `angle_transitions.csv`：切換開始、結束、持續時間及方向
-- `angle_state_summary.csv`：各角度及移動狀態統計
+```powershell
+python .\run_all_analysis.py --skip-step 4
+```
 
-`results/mode_analysis/`：
+## 分析流程
 
-- 每種方法的模態頻率、能量及切換響應
-- `mode_frequency_comparison.csv`：跨方法頻率比較
-- `method_summary.csv`：三種方法品質摘要
-- `angle_position_mode_comparison.png`：三種方法之角度位置模態比較
-- `cross_method_mode_comparison.png`：頻率與角度移動敏感度比較
-- `ANALYSIS_SUMMARY.md`：目前可下結論與限制的中文摘要
+| 步驟 | 功能 |
+| ---: | --- |
+| 01 | 檢查輸入資料與取樣資訊。 |
+| 02 | 估測角度並標記穩定與移動狀態。 |
+| 03 | 執行五種 VMD 類方法並輸出模態。 |
+| 04 | 補充比較角度移動與穩定期間的模態反應；不是後續步驟的必要輸入。 |
+| 05 | 擷取滑動視窗的 RMS、包絡與局部頻率等特徵。 |
+| 06 | 依角度狀態建立穩定基準。 |
+| 07 | 找出偏離基準的候選視窗。 |
+| 08 | 比較不同方法是否支持相同候選。 |
+| 09 | 繪製候選事件的訊號、角度與模態證據圖。 |
+| 10 | 合併相鄰候選並判斷是否與角度移動有關。 |
+| 11 | 使用未經 VMD 的原始 Welch 頻譜驗證候選。 |
+| 12 | 比較相同角度的不同穩定循環。 |
+| 13 | 建立跨方法的模態頻率與行為總表。 |
 
-## 結果解釋原則
+## 結果位置與判讀
 
-- 不以IMF編號直接跨方法配對，應以峰值頻率配對。
-- 移動期間能量增加的模態是「角度移動響應候選」，不直接稱為故障。
-- 只有在相同角度與相同移動條件下偏離正常模態，才可進一步定義異常。
-- 目前只有10°與43°兩個校正點，不能宣稱可精確估計任意角度。
+全部輸出位於 `results/`。建議依序查看：
+
+1. `mode_behavior_atlas/`：各方法共同出現的頻率，以及頻率與角度／循環的關係。
+2. `physical_episodes/`：候選發生時間、頻率和事件分類。
+3. `raw_spectral_validation/`：候選是否也獲得原始頻譜支持。
+4. `stable_cycle_comparison/`：相同角度不同循環的能量與頻率變化。
+5. `consensus_event_evidence/`：候選事件圖，供人工檢查。
+
+主要欄位：
+
+- `supporting_methods`：支持候選的方法；方法越多，結果通常越不受單一演算法影響。
+- `raw_spectrum_supported`：原始頻譜是否支持候選，但 `True` 仍不代表故障。
+- `maximum_consecutive_candidate_windows`：候選連續出現的視窗數，持續性通常比單一高分更重要。
+- `episode_to_baseline_rms_ratio`：相對同角度基準的能量比例；大於 1 為增加，小於 1 為降低。
+- `episode_classification`：區分與角度移動相關的動態反應，以及穩定角度下的異常候選。
+
+## 注意事項
+
+- 角度為訊號估測結果，不是獨立角度感測器的真值。
+- 多種 VMD 方法得到相同結果，只代表候選較穩健，不代表故障機率。
+- 若要判定故障或零件來源，仍需健康／故障標籤、重複實驗、轉速、負載、傳動比及零件規格等資料。
+- 新資料若具有不同欄位、取樣率、角度流程或感測器頻寬，需要先調整設定。
