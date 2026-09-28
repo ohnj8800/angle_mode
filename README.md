@@ -52,6 +52,33 @@ python .\run_all_analysis.py --from-step 10 --to-step 13
 python .\run_all_analysis.py --skip-step 4
 ```
 
+### 固定角度、多次重複量測
+
+`run_batch_static_analysis.py` 用於像「無負載10度 (1).csv」這類固定角度、
+多次重複量測的資料。這條流程不執行角度切換偵測，而是比較資料品質、
+平均波長、AC RMS、Welch PSD及五種VMD方法的模態結果。
+
+將CSV放入 `data/raw/no_load_30hz/` 後執行：
+
+```powershell
+python .\run_batch_static_analysis.py
+```
+
+若資料位於其他資料夾：
+
+```powershell
+python .\run_batch_static_analysis.py --input-dir "D:\data\無負載"
+```
+
+只先執行資料品質與Welch PSD：
+
+```powershell
+python .\run_batch_static_analysis.py --basic-only
+```
+
+批次結果預設輸出至 `results/batch_no_load_30hz/`。程式接受原專案的
+`time`、`CH1` 欄位，也接受解調器匯出的 `時間戳記`、`Ch1` 欄位。
+
 ## 分析流程
 
 | 步驟 | 功能 |

@@ -5,11 +5,36 @@ import pandas as pd
 
 
 REQUIRED_COLUMNS = {"time", "CH1"}
+TIME_COLUMN_ALIASES = ("time", "時間戳記")
+CH1_COLUMN_ALIASES = ("CH1", "Ch1", "ch1")
+
+
+def _find_column_alias(
+    columns: list[str],
+    aliases: tuple[str, ...],
+    logical_name: str,
+) -> str:
+    """Find one unambiguous source column for a logical field."""
+    matches = [column for column in columns if column in aliases]
+
+    if not matches:
+        raise ValueError(
+            f"CSV缺少{logical_name}欄位；可接受欄名為{list(aliases)}；"
+            f"目前欄位為：{columns}"
+        )
+
+    if len(matches) > 1:
+        raise ValueError(
+            f"CSV同時包含多個{logical_name}候選欄位：{matches}，"
+            "請先確認應使用哪一欄。"
+        )
+
+    return matches[0]
 
 
 def parse_logger_time(time_column: pd.Series) -> np.ndarray:
     """
-    將CSV中的「分:秒.毫秒」轉成秒數。
+    將CSV中的「分:秒.毫秒」或「時:分:秒.毫秒」轉成秒數。
 
     例如：
     26:27.724 -> 26 * 60 + 27.724 秒
@@ -18,17 +43,32 @@ def parse_logger_time(time_column: pd.Series) -> np.ndarray:
     真正的頻譜分析會依固定取樣率建立均勻時間軸。
     """
     text = time_column.astype(str).str.strip()
-    parts = text.str.split(":", n=1, expand=True)
+    colon_counts = text.str.count(":")
 
-    if parts.shape[1] != 2:
+    if not colon_counts.isin([1, 2]).all():
         raise ValueError(
-            "time欄位格式錯誤，預期格式為「分:秒.毫秒」，"
-            "例如26:27.724。"
+            "time欄位格式錯誤，預期格式為「分:秒.毫秒」或"
+            "「時:分:秒.毫秒」。"
         )
 
-    minutes = pd.to_numeric(parts[0], errors="coerce")
-    seconds = pd.to_numeric(parts[1], errors="coerce")
-    logger_seconds = minutes * 60.0 + seconds
+    logger_seconds = pd.Series(np.nan, index=text.index, dtype=float)
+
+    minute_second_mask = colon_counts.eq(1)
+    if minute_second_mask.any():
+        parts = text.loc[minute_second_mask].str.split(":", expand=True)
+        minutes = pd.to_numeric(parts[0], errors="coerce")
+        seconds = pd.to_numeric(parts[1], errors="coerce")
+        logger_seconds.loc[minute_second_mask] = minutes * 60.0 + seconds
+
+    hour_minute_second_mask = colon_counts.eq(2)
+    if hour_minute_second_mask.any():
+        parts = text.loc[hour_minute_second_mask].str.split(":", expand=True)
+        hours = pd.to_numeric(parts[0], errors="coerce")
+        minutes = pd.to_numeric(parts[1], errors="coerce")
+        seconds = pd.to_numeric(parts[2], errors="coerce")
+        logger_seconds.loc[hour_minute_second_mask] = (
+            hours * 3600.0 + minutes * 60.0 + seconds
+        )
 
     if logger_seconds.isna().any():
         bad_count = int(logger_seconds.isna().sum())
@@ -71,13 +111,14 @@ def load_fbg_csv(
     raw = pd.read_csv(csv_path, encoding="utf-8-sig")
     raw.columns = raw.columns.astype(str).str.strip()
 
-    missing_columns = REQUIRED_COLUMNS - set(raw.columns)
-
-    if missing_columns:
-        raise ValueError(
-            f"CSV缺少必要欄位：{sorted(missing_columns)}；"
-            f"目前欄位為：{raw.columns.tolist()}"
-        )
+    original_columns = raw.columns.tolist()
+    time_column = _find_column_alias(
+        original_columns, TIME_COLUMN_ALIASES, "時間"
+    )
+    ch1_column = _find_column_alias(
+        original_columns, CH1_COLUMN_ALIASES, "CH1"
+    )
+    raw = raw.rename(columns={time_column: "time", ch1_column: "CH1"})
 
     ch1 = pd.to_numeric(raw["CH1"], errors="coerce")
     logger_seconds = parse_logger_time(raw["time"])
@@ -119,6 +160,8 @@ def load_fbg_csv(
 
     information = {
         "file_name": csv_path.name,
+        "source_time_column": time_column,
+        "source_ch1_column": ch1_column,
         "sample_count": len(data),
         "sampling_rate_hz": sampling_rate,
         "duration_s": float((len(data) - 1) / sampling_rate),
@@ -128,6 +171,13 @@ def load_fbg_csv(
         "ch1_min_nm": float(data["ch1_nm"].min()),
         "ch1_max_nm": float(data["ch1_nm"].max()),
         "invalid_ch1_count": invalid_ch1_count,
+        "missing_value_count": int(raw.isna().sum().sum()),
+        "exact_duplicate_row_count": int(raw.duplicated().sum()),
+        "raw_time_start": str(raw_time.iloc[0]),
+        "raw_time_end": str(raw_time.iloc[-1]),
+        "raw_time_start_s": float(logger_seconds[0]),
+        "raw_time_end_s": float(logger_seconds[-1]),
+        "raw_time_unique_count": int(np.unique(logger_seconds).size),
         "raw_time_nonpositive_steps": duplicate_or_backward_count,
         "raw_time_median_positive_dt_s": median_positive_dt,
     }

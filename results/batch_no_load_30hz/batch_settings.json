@@ -1,0 +1,14 @@
+{
+  "input_dir": "C:\\Users\\ohnj8\\Desktop\\angle_mode_project\\data\\raw\\no_load_30hz",
+  "sampling_rate_hz": 200.0,
+  "nyquist_frequency_hz": 100.0,
+  "frequency_interpretation_limit": "frequencies near 100 Hz are Nyquist-edge candidates",
+  "methods": [
+    "VMD",
+    "IOVMD",
+    "AVMD",
+    "SVMD",
+    "STVMD"
+  ],
+  "file_count": 20
+}

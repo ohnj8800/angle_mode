@@ -1,0 +1,789 @@
+{
+  "無負載10度 (1).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (1).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      27.599999999999998,
+      35.56666666666666,
+      51.266666666666666,
+      55.166666666666664,
+      60.333333333333336,
+      82.93333333333334,
+      88.0
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (1).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (1).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (1).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.875
+  },
+  "無負載10度 (2).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (2).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      28.8,
+      38.03333333333333,
+      57.86666666666667,
+      62.9,
+      74.43333333333334,
+      86.63333333333333
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (2).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (2).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (2).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.8125
+  },
+  "無負載10度 (3).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (3).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      28.8,
+      36.56666666666666,
+      57.733333333333334,
+      62.63333333333333,
+      81.56666666666666,
+      86.53333333333333
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (3).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (3).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (3).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載10度 (4).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (4).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      28.966666666666665,
+      35.766666666666666,
+      58.0,
+      75.86666666666666,
+      87.1,
+      93.33333333333333
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (4).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (4).csv|SVMD": {
+    "mode_count": 9,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (4).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.6875
+  },
+  "無負載10度 (5).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (5).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      29.133333333333333,
+      34.3,
+      58.4,
+      77.3,
+      82.46666666666667,
+      87.16666666666667,
+      93.16666666666667
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (5).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (5).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (5).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載10度 (6).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (6).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      29.133333333333333,
+      34.9,
+      58.199999999999996,
+      73.4,
+      81.13333333333333,
+      85.6,
+      92.93333333333334
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (6).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (6).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (6).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載10度 (7).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (7).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      28.766666666666666,
+      38.6,
+      57.666666666666664,
+      79.1,
+      83.86666666666666,
+      93.73333333333333
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (7).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (7).csv|SVMD": {
+    "mode_count": 9,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (7).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.875
+  },
+  "無負載10度 (8).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (8).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      27.766666666666666,
+      32.5,
+      47.56666666666666,
+      55.53333333333333,
+      62.1,
+      83.0,
+      89.3
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (8).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (8).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (8).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.8125
+  },
+  "無負載10度 (9).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (9).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      28.3,
+      42.06666666666666,
+      56.666666666666664,
+      60.8,
+      79.7,
+      84.8
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (9).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (9).csv|SVMD": {
+    "mode_count": 7,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (9).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.9375
+  },
+  "無負載10度 (10).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載10度 (10).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      28.633333333333333,
+      39.2,
+      57.36666666666667,
+      60.5,
+      85.66666666666667,
+      89.4
+    ],
+    "merged_groups": []
+  },
+  "無負載10度 (10).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載10度 (10).csv|SVMD": {
+    "mode_count": 6,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載10度 (10).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載43度 (1).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (1).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      29.733333333333334,
+      48.9,
+      59.5,
+      69.7,
+      80.13333333333333,
+      89.36666666666666,
+      93.7
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (1).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (1).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (1).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.9375
+  },
+  "無負載43度 (2).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (2).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 8,
+    "final_mode_count": 8,
+    "initial_center_frequencies_hz": [
+      16.7,
+      29.8,
+      47.46666666666667,
+      59.666666666666664,
+      62.6,
+      79.76666666666667,
+      89.7,
+      92.93333333333334
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (2).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (2).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (2).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.9375
+  },
+  "無負載43度 (3).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (3).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 11,
+    "final_mode_count": 10,
+    "initial_center_frequencies_hz": [
+      26.366666666666667,
+      29.9,
+      39.86666666666667,
+      50.1,
+      59.9,
+      63.46666666666667,
+      66.43333333333334,
+      69.66666666666667,
+      80.1,
+      90.0,
+      93.36666666666666
+    ],
+    "merged_groups": [
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  "無負載43度 (3).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (3).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (3).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.9375
+  },
+  "無負載43度 (4).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (4).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 6,
+    "final_mode_count": 6,
+    "initial_center_frequencies_hz": [
+      29.7,
+      45.36666666666667,
+      59.53333333333333,
+      65.43333333333334,
+      89.16666666666667,
+      93.26666666666667
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (4).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (4).csv|SVMD": {
+    "mode_count": 9,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (4).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載43度 (5).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (5).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 8,
+    "final_mode_count": 8,
+    "initial_center_frequencies_hz": [
+      29.7,
+      46.3,
+      59.53333333333333,
+      64.0,
+      67.76666666666667,
+      80.23333333333333,
+      89.6,
+      93.33333333333333
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (5).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (5).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (5).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載43度 (6).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (6).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      29.733333333333334,
+      48.666666666666664,
+      59.733333333333334,
+      62.03333333333333,
+      69.63333333333333,
+      79.7,
+      89.9
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (6).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (6).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (6).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.9375
+  },
+  "無負載43度 (7).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (7).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 7,
+    "final_mode_count": 7,
+    "initial_center_frequencies_hz": [
+      29.766666666666666,
+      49.2,
+      59.733333333333334,
+      69.83333333333333,
+      79.96666666666667,
+      89.66666666666667,
+      92.96666666666667
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (7).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (7).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (7).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.9375
+  },
+  "無負載43度 (8).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (8).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 12,
+    "final_mode_count": 12,
+    "initial_center_frequencies_hz": [
+      17.866666666666667,
+      28.7,
+      40.233333333333334,
+      46.4,
+      50.06666666666666,
+      52.53333333333333,
+      57.36666666666667,
+      60.199999999999996,
+      67.26666666666667,
+      81.46666666666667,
+      85.76666666666667,
+      93.4
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (8).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (8).csv|SVMD": {
+    "mode_count": 9,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (8).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載43度 (9).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (9).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 10,
+    "final_mode_count": 10,
+    "initial_center_frequencies_hz": [
+      17.866666666666667,
+      29.066666666666666,
+      34.86666666666667,
+      46.666666666666664,
+      49.53333333333333,
+      52.36666666666667,
+      58.06666666666666,
+      70.26666666666667,
+      81.3,
+      93.23333333333333
+    ],
+    "merged_groups": []
+  },
+  "無負載43度 (9).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (9).csv|SVMD": {
+    "mode_count": 9,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (9).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 1.0
+  },
+  "無負載43度 (10).csv|VMD": {
+    "mode_count": 10,
+    "alpha": 2000.0,
+    "parameter_rule": "fixed K=10 and alpha=2000"
+  },
+  "無負載43度 (10).csv|IOVMD": {
+    "alpha": 2000.0,
+    "initial_mode_count": 11,
+    "final_mode_count": 10,
+    "initial_center_frequencies_hz": [
+      18.966666666666665,
+      29.633333333333333,
+      46.6,
+      49.56666666666666,
+      52.166666666666664,
+      59.36666666666667,
+      66.06666666666666,
+      73.16666666666667,
+      81.76666666666667,
+      88.43333333333334,
+      93.66666666666667
+    ],
+    "merged_groups": [
+      [
+        1,
+        2
+      ]
+    ]
+  },
+  "無負載43度 (10).csv|AVMD": {
+    "mode_count": 4,
+    "alpha": 100.0,
+    "reference_file": "無負載10度 (6).csv",
+    "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat"
+  },
+  "無負載43度 (10).csv|SVMD": {
+    "mode_count": 8,
+    "stop_reason": "reconstruction_power_tolerance"
+  },
+  "無負載43度 (10).csv|STVMD": {
+    "mode_count": 9,
+    "alpha": 2000.0,
+    "window_duration_s": 8.0,
+    "hop_duration_s": 2.0,
+    "frame_count": 16,
+    "converged_frame_fraction": 0.875
+  },
+  "AVMD_SHARED_SELECTION": {
+    "reference_file": "無負載10度 (6).csv",
+    "mode_count": 4,
+    "alpha": 100.0,
+    "selection_score": 0.05399821697285728
+  }
+}
