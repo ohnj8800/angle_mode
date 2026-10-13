@@ -58,6 +58,7 @@ def preprocess_fbg_signal(
     sampling_rate: float = 200.0,
     lowpass_cutoff_hz: float = 0.1,
     highpass_cutoff_hz: float = 0.5,
+    dynamic_lowpass_cutoff_hz: float | None = None,
     filter_order: int = 4,
 ) -> dict[str, np.ndarray]:
     """
@@ -68,6 +69,7 @@ def preprocess_fbg_signal(
 
     dynamic_nm：
         只供VMD分析振動模態。角度辨識不可使用此訊號。
+        若指定dynamic_lowpass_cutoff_hz，會再限制動態分析的上限頻率。
 
     residual_without_angle_nm：
         原始訊號扣除角度成分，可用來檢查角度與振動是否分離。
@@ -93,6 +95,19 @@ def preprocess_fbg_signal(
         filter_type="highpass",
         order=filter_order,
     )
+
+    if dynamic_lowpass_cutoff_hz is not None:
+        if dynamic_lowpass_cutoff_hz <= highpass_cutoff_hz:
+            raise ValueError(
+                "dynamic_lowpass_cutoff_hz必須大於highpass_cutoff_hz。"
+            )
+        dynamic_nm = zero_phase_filter(
+            signal=dynamic_nm,
+            sampling_rate=sampling_rate,
+            cutoff_hz=dynamic_lowpass_cutoff_hz,
+            filter_type="lowpass",
+            order=filter_order,
+        )
 
     # 消除濾波後可能留下的極小平均偏移。
     dynamic_nm = dynamic_nm - np.mean(dynamic_nm)

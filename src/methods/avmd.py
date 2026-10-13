@@ -132,6 +132,8 @@ def evaluate_avmd_candidate(
     tolerance: float = 1e-7,
     maximum_iterations: int = 500,
     welch_tolerance_hz: float = 1.0,
+    minimum_frequency_hz: float = 0.5,
+    maximum_frequency_hz: float | None = None,
 ) -> dict:
     """
     執行一組 K、alpha 候選參數，並計算選模所需品質指標。
@@ -142,6 +144,8 @@ def evaluate_avmd_candidate(
         signal=signal,
         sampling_rate=sampling_rate,
         mode_count=mode_count,
+        minimum_frequency_hz=minimum_frequency_hz,
+        maximum_frequency_hz=maximum_frequency_hz,
     )
 
     vmd_result = variational_mode_decomposition(
@@ -264,6 +268,8 @@ def select_avmd_parameters(
     tolerance: float = 1e-7,
     maximum_iterations: int = 500,
     welch_tolerance_hz: float = 1.0,
+    minimum_frequency_hz: float = 0.5,
+    maximum_frequency_hz: float | None = None,
 ) -> dict:
     """
     使用正常運轉參考訊號，自動選擇 AVMD 的 K 與 alpha。
@@ -307,6 +313,8 @@ def select_avmd_parameters(
                     tolerance=tolerance,
                     maximum_iterations=maximum_iterations,
                     welch_tolerance_hz=welch_tolerance_hz,
+                    minimum_frequency_hz=minimum_frequency_hz,
+                    maximum_frequency_hz=maximum_frequency_hz,
                 )
             except Exception as error:
                 record = {
@@ -404,6 +412,8 @@ def select_avmd_parameters(
         signal=reference_signal,
         sampling_rate=sampling_rate,
         mode_count=best_mode_count,
+        minimum_frequency_hz=minimum_frequency_hz,
+        maximum_frequency_hz=maximum_frequency_hz,
     )
 
     best_vmd_result = variational_mode_decomposition(
@@ -432,4 +442,153 @@ def select_avmd_parameters(
         ),
         "trials": trials,
         "reference_vmd_result": best_vmd_result,
+    }
+
+
+def _absolute_adaptive_k_score(
+    candidate: dict,
+    minimum_mode_count: int,
+    maximum_mode_count: int,
+) -> float:
+    """Create a comparable quality score for K candidates from one file."""
+    reconstruction_loss = np.clip(
+        float(candidate["relative_reconstruction_error"]) / 0.25,
+        0.0,
+        2.0,
+    )
+    overlap_loss = np.clip(
+        float(candidate["mean_spectral_overlap"]) / 0.30,
+        0.0,
+        2.0,
+    )
+    correlation_loss = np.clip(
+        float(candidate["mean_waveform_correlation"]) / 0.30,
+        0.0,
+        2.0,
+    )
+    unsupported_loss = np.clip(
+        1.0 - float(candidate["welch_support_ratio"]),
+        0.0,
+        1.0,
+    )
+    if maximum_mode_count == minimum_mode_count:
+        complexity_loss = 0.0
+    else:
+        complexity_loss = (
+            int(candidate["mode_count"]) - minimum_mode_count
+        ) / (maximum_mode_count - minimum_mode_count)
+    convergence_penalty = 0.0 if candidate["converged"] else 0.25
+    return float(
+        0.35 * reconstruction_loss
+        + 0.25 * overlap_loss
+        + 0.15 * correlation_loss
+        + 0.15 * unsupported_loss
+        + 0.10 * complexity_loss
+        + convergence_penalty
+    )
+
+
+def select_adaptive_avmd_k(
+    signal: np.ndarray,
+    sampling_rate: float,
+    initial_mode_count: int,
+    alpha: float,
+    minimum_mode_count: int = 3,
+    maximum_mode_count: int = 10,
+    maximum_steps: int = 3,
+    minimum_score_improvement: float = 0.01,
+    maximum_iterations: int = 300,
+    welch_tolerance_hz: float = 1.0,
+    minimum_frequency_hz: float = 0.5,
+    maximum_frequency_hz: float | None = None,
+) -> dict:
+    """
+    Iteratively adapt K for one signal while keeping the shared alpha fixed.
+
+    The loop evaluates the current K and its immediate neighbours. It moves to
+    the best neighbour only when the score improves sufficiently, then repeats.
+    This limits runtime while allowing different files to use different K.
+    """
+    if minimum_mode_count < 2:
+        raise ValueError("minimum_mode_count must be at least 2.")
+    if maximum_mode_count < minimum_mode_count:
+        raise ValueError("maximum_mode_count must be >= minimum_mode_count.")
+    if maximum_steps < 1:
+        raise ValueError("maximum_steps must be at least 1.")
+
+    signal = np.asarray(signal, dtype=float).reshape(-1)
+    current_k = int(np.clip(
+        initial_mode_count,
+        minimum_mode_count,
+        maximum_mode_count,
+    ))
+    cache: dict[int, dict] = {}
+    path = [current_k]
+
+    def evaluate(k: int) -> dict:
+        if k not in cache:
+            try:
+                record = evaluate_avmd_candidate(
+                    signal=signal,
+                    sampling_rate=sampling_rate,
+                    mode_count=k,
+                    alpha=alpha,
+                    maximum_iterations=maximum_iterations,
+                    welch_tolerance_hz=welch_tolerance_hz,
+                    minimum_frequency_hz=minimum_frequency_hz,
+                    maximum_frequency_hz=maximum_frequency_hz,
+                )
+                record["adaptive_k_score"] = _absolute_adaptive_k_score(
+                    record,
+                    minimum_mode_count=minimum_mode_count,
+                    maximum_mode_count=maximum_mode_count,
+                )
+            except Exception as error:
+                record = {
+                    "mode_count": int(k),
+                    "alpha": float(alpha),
+                    "valid": False,
+                    "converged": False,
+                    "error_message": str(error),
+                    "adaptive_k_score": float("inf"),
+                }
+            cache[k] = record
+        return cache[k]
+
+    stop_reason = "maximum_steps"
+    for _ in range(maximum_steps):
+        current = evaluate(current_k)
+        neighbour_k = [
+            k for k in (current_k - 1, current_k + 1)
+            if minimum_mode_count <= k <= maximum_mode_count
+        ]
+        neighbours = [evaluate(k) for k in neighbour_k]
+        best = min([current, *neighbours], key=lambda row: row["adaptive_k_score"])
+        improvement = current["adaptive_k_score"] - best["adaptive_k_score"]
+        if int(best["mode_count"]) == current_k:
+            stop_reason = "local_minimum"
+            break
+        if improvement < minimum_score_improvement:
+            stop_reason = "improvement_below_threshold"
+            break
+        current_k = int(best["mode_count"])
+        path.append(current_k)
+    else:
+        evaluate(current_k)
+
+    if not np.isfinite(cache[current_k]["adaptive_k_score"]):
+        raise RuntimeError("All adaptive-K candidates failed.")
+    best = cache[current_k]
+    trials = pd.DataFrame(list(cache.values())).sort_values(
+        ["adaptive_k_score", "mode_count"]
+    ).reset_index(drop=True)
+    return {
+        "initial_mode_count": int(initial_mode_count),
+        "best_mode_count": int(best["mode_count"]),
+        "best_score": float(best["adaptive_k_score"]),
+        "alpha": float(alpha),
+        "evaluated_mode_counts": sorted(cache),
+        "search_path": path,
+        "stop_reason": stop_reason,
+        "trials": trials,
     }

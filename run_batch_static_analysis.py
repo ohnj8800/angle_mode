@@ -619,22 +619,35 @@ def decompose_signal(
     if method == "AVMD":
         if avmd_settings is None:
             raise ValueError("AVMD settings are required.")
+        avmd_maximum_frequency_hz = float(
+            avmd_settings.get("maximum_frequency_hz", maximum_frequency_hz)
+        )
         centers = create_bandwise_initial_centers(
             signal, sampling_rate=sampling_rate,
             mode_count=avmd_settings["mode_count"],
             minimum_frequency_hz=0.5,
-            maximum_frequency_hz=maximum_frequency_hz,
+            maximum_frequency_hz=avmd_maximum_frequency_hz,
         )
         result = variational_mode_decomposition(
             signal, sampling_rate=sampling_rate,
             initial_center_frequencies_hz=centers,
             alpha=avmd_settings["alpha"], maximum_iterations=500,
         )
+        adaptive_k = bool(avmd_settings.get("adaptive_k", False))
         return result["modes"], result["center_frequencies_hz"], {
             "mode_count": avmd_settings["mode_count"],
             "alpha": avmd_settings["alpha"],
             "reference_file": avmd_settings["reference_file"],
-            "parameter_rule": "one shared K and alpha selected from representative no-load 10-degree repeat",
+            "maximum_frequency_hz": avmd_maximum_frequency_hz,
+            "adaptive_k": adaptive_k,
+            "adaptive_k_score": avmd_settings.get("adaptive_k_score"),
+            "adaptive_k_stop_reason": avmd_settings.get("adaptive_k_stop_reason"),
+            "adaptive_k_search_path": avmd_settings.get("adaptive_k_search_path"),
+            "parameter_rule": (
+                "per-file adaptive K with shared alpha"
+                if adaptive_k
+                else "shared K and alpha selected from representative repeat"
+            ),
         }
     if method == "SVMD":
         result = successive_variational_mode_decomposition(

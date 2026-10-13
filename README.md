@@ -109,6 +109,22 @@ python .\run_archive_avmd_analysis.py --preprocess-only
 python .\run_archive_avmd_analysis.py
 ```
 
+新版流程預設將AVMD輸入限制在0.5–40 Hz，先由代表檔選擇初始K與alpha，
+再對每個CSV執行adaptive-K迴圈。adaptive-K會比較重建誤差、模態頻譜重疊、
+模態相關性、Welch PSD支持度與模態數複雜度，因此不同檔案可以得到不同K。
+
+先用3個檔案測試新版adaptive-K：
+
+```powershell
+python .\run_archive_avmd_analysis.py --max-files 3 --skip-per-file-plots
+```
+
+若要重現舊版「全部檔案共用K」：
+
+```powershell
+python .\run_archive_avmd_analysis.py --disable-adaptive-k
+```
+
 若先測試流程，可限制前3個檔案並減少AVMD參數候選：
 
 ```powershell
@@ -139,9 +155,11 @@ python .\run_archive_avmd_analysis.py --methods VMD IOVMD AVMD SVMD STVMD
 - `05_angle_vs_avmd_dominant_frequency.png`
 - `06_angle_vs_avmd_energy_ratio.png`
 - `07_avmd_reconstruction_quality.png`
+- `08_adaptive_k_by_angle.png`
 - `preprocessing_before_after.csv`
 - `method_file_summary.csv`
 - `all_mode_metrics.csv`
+- `adaptive_k_trials.csv`
 
 ## 分析流程
 

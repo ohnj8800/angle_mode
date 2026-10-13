@@ -20,7 +20,7 @@ from src.common.io import load_fbg_csv
 from src.common.metrics import calculate_mode_metrics, calculate_reconstruction_metrics
 from src.common.postprocessing import evaluate_welch_support
 from src.common.preprocessing import calculate_welch_psd, preprocess_fbg_signal
-from src.methods.avmd import select_avmd_parameters
+from src.methods.avmd import select_adaptive_avmd_k, select_avmd_parameters
 
 
 CONDITION_LABELS = {
@@ -68,6 +68,20 @@ def parse_arguments() -> argparse.Namespace:
         nargs="+",
         type=float,
         default=[100.0, 250.0, 500.0, 1000.0, 2000.0],
+    )
+    parser.add_argument(
+        "--dynamic-lowpass-hz",
+        type=float,
+        default=40.0,
+        help="AVMD動態訊號上限頻率；預設40 Hz。",
+    )
+    parser.add_argument("--adaptive-k-min", type=int, default=3)
+    parser.add_argument("--adaptive-k-max", type=int, default=9)
+    parser.add_argument("--adaptive-k-steps", type=int, default=3)
+    parser.add_argument(
+        "--disable-adaptive-k",
+        action="store_true",
+        help="停用逐檔adaptive-K，改用參考檔選出的共用K。",
     )
     parser.add_argument(
         "--skip-per-file-plots",
@@ -130,6 +144,7 @@ def plot_preprocessing_comparison(
     processed_psd: np.ndarray,
     title: str,
     output_path: Path,
+    dynamic_lowpass_hz: float,
 ) -> None:
     time_s = data["time_s"].to_numpy()
     raw = preprocessing["raw_nm"]
@@ -152,7 +167,13 @@ def plot_preprocessing_comparison(
     axes[0].grid(alpha=0.2)
 
     axes[1].plot(time_s, centered, color="0.65", linewidth=0.6, label="Before")
-    axes[1].plot(time_s, dynamic, color="0.05", linewidth=0.65, label="After: >0.5 Hz")
+    axes[1].plot(
+        time_s,
+        dynamic,
+        color="0.05",
+        linewidth=0.65,
+        label=f"After: 0.5–{dynamic_lowpass_hz:g} Hz",
+    )
     axes[1].set_ylabel("Centered wavelength (nm)")
     axes[1].set_xlabel("Time (s)")
     axes[1].set_title("Before and after dynamic-signal preprocessing")
@@ -192,6 +213,7 @@ def analyze_preprocessing(
     sampling_rate: float,
     output_root: Path,
     make_per_file_plots: bool,
+    dynamic_lowpass_hz: float,
 ) -> pd.DataFrame:
     rows = []
     for index, metadata in enumerate(inventory, start=1):
@@ -205,6 +227,7 @@ def analyze_preprocessing(
             preprocessing = preprocess_fbg_signal(
                 data["ch1_nm"].to_numpy(),
                 sampling_rate=sampling_rate,
+                dynamic_lowpass_cutoff_hz=dynamic_lowpass_hz,
             )
             centered = preprocessing["centered_raw_nm"]
             dynamic = preprocessing["dynamic_nm"]
@@ -250,6 +273,7 @@ def analyze_preprocessing(
                     processed_psd,
                     metadata["relative_path"],
                     folder / "01_preprocessing_comparison.png",
+                    dynamic_lowpass_hz,
                 )
         except Exception as error:
             rows.append(
@@ -266,6 +290,7 @@ def choose_avmd_reference(
     preprocessing_summary: pd.DataFrame,
     inventory_by_relative_path: dict[str, dict],
     sampling_rate: float,
+    dynamic_lowpass_hz: float,
 ) -> tuple[str, np.ndarray]:
     valid = preprocessing_summary.loc[preprocessing_summary["status"] == "ok"].copy()
     preferred = valid.loc[
@@ -288,7 +313,9 @@ def choose_avmd_reference(
         remove_exact_duplicates=True,
     )
     preprocessing = preprocess_fbg_signal(
-        data["ch1_nm"].to_numpy(), sampling_rate=sampling_rate
+        data["ch1_nm"].to_numpy(),
+        sampling_rate=sampling_rate,
+        dynamic_lowpass_cutoff_hz=dynamic_lowpass_hz,
     )
     return relative_path, preprocessing["dynamic_nm"]
 
@@ -300,11 +327,13 @@ def prepare_avmd_settings(
     candidate_k: list[int],
     candidate_alpha: list[float],
     output_root: Path,
+    dynamic_lowpass_hz: float,
 ) -> dict:
     reference_path, reference_signal = choose_avmd_reference(
         preprocessing_summary,
         inventory_by_relative_path,
         sampling_rate,
+        dynamic_lowpass_hz,
     )
     selection = select_avmd_parameters(
         reference_signal=reference_signal,
@@ -312,6 +341,7 @@ def prepare_avmd_settings(
         candidate_mode_counts=candidate_k,
         candidate_alphas=candidate_alpha,
         maximum_iterations=300,
+        maximum_frequency_hz=dynamic_lowpass_hz,
     )
     selection["trials"].to_csv(
         output_root / "avmd_parameter_trials.csv", index=False
@@ -321,6 +351,7 @@ def prepare_avmd_settings(
         "mode_count": int(selection["best_mode_count"]),
         "alpha": float(selection["best_alpha"]),
         "selection_score": float(selection["best_selection_score"]),
+        "maximum_frequency_hz": float(dynamic_lowpass_hz),
     }
 
 
@@ -391,10 +422,16 @@ def run_mode_analysis(
     avmd_settings: dict | None,
     output_root: Path,
     make_per_file_plots: bool,
-) -> tuple[pd.DataFrame, pd.DataFrame, dict]:
+    dynamic_lowpass_hz: float,
+    adaptive_k_enabled: bool,
+    adaptive_k_min: int,
+    adaptive_k_max: int,
+    adaptive_k_steps: int,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:
     summaries = []
     metric_tables = []
     parameters = {}
+    adaptive_trial_tables = []
     for index, metadata in enumerate(inventory, start=1):
         relative_path = metadata["relative_path"]
         if relative_path not in valid_relative_paths:
@@ -404,7 +441,9 @@ def run_mode_analysis(
             remove_exact_duplicates=True,
         )
         preprocessing = preprocess_fbg_signal(
-            data["ch1_nm"].to_numpy(), sampling_rate=sampling_rate
+            data["ch1_nm"].to_numpy(),
+            sampling_rate=sampling_rate,
+            dynamic_lowpass_cutoff_hz=dynamic_lowpass_hz,
         )
         signal = preprocessing["dynamic_nm"]
         for method in methods:
@@ -414,8 +453,35 @@ def run_mode_analysis(
             )
             started = time.perf_counter()
             try:
+                file_avmd_settings = avmd_settings
+                adaptive_selection = None
+                if method == "AVMD" and adaptive_k_enabled:
+                    if avmd_settings is None:
+                        raise ValueError("AVMD settings are required.")
+                    adaptive_selection = select_adaptive_avmd_k(
+                        signal=signal,
+                        sampling_rate=sampling_rate,
+                        initial_mode_count=int(avmd_settings["mode_count"]),
+                        alpha=float(avmd_settings["alpha"]),
+                        minimum_mode_count=adaptive_k_min,
+                        maximum_mode_count=adaptive_k_max,
+                        maximum_steps=adaptive_k_steps,
+                        maximum_iterations=300,
+                        maximum_frequency_hz=dynamic_lowpass_hz,
+                    )
+                    file_avmd_settings = {
+                        **avmd_settings,
+                        "mode_count": int(adaptive_selection["best_mode_count"]),
+                        "adaptive_k": True,
+                        "adaptive_k_score": float(adaptive_selection["best_score"]),
+                        "adaptive_k_stop_reason": adaptive_selection["stop_reason"],
+                        "adaptive_k_search_path": adaptive_selection["search_path"],
+                    }
+                    trials = adaptive_selection["trials"].copy()
+                    trials.insert(0, "relative_path", relative_path)
+                    adaptive_trial_tables.append(trials)
                 modes, centers, method_parameters = decompose_signal(
-                    method, signal, sampling_rate, avmd_settings
+                    method, signal, sampling_rate, file_avmd_settings
                 )
                 metrics = calculate_mode_metrics(modes, sampling_rate, centers)
                 metrics, _ = evaluate_welch_support(
@@ -445,6 +511,26 @@ def run_mode_analysis(
                         "status": "ok",
                         "error_message": "",
                         "mode_count": len(modes),
+                        "shared_initial_k": (
+                            int(avmd_settings["mode_count"])
+                            if method == "AVMD" and avmd_settings is not None
+                            else np.nan
+                        ),
+                        "adaptive_k_used": bool(
+                            method == "AVMD" and adaptive_selection is not None
+                        ),
+                        "adaptive_k_score": (
+                            float(adaptive_selection["best_score"])
+                            if adaptive_selection is not None else np.nan
+                        ),
+                        "adaptive_k_stop_reason": (
+                            adaptive_selection["stop_reason"]
+                            if adaptive_selection is not None else ""
+                        ),
+                        "adaptive_k_candidates_evaluated": (
+                            len(adaptive_selection["evaluated_mode_counts"])
+                            if adaptive_selection is not None else 0
+                        ),
                         "dominant_mode": str(dominant["mode"]),
                         "dominant_mode_peak_frequency_hz": float(
                             dominant["peak_frequency_hz"]
@@ -485,7 +571,11 @@ def run_mode_analysis(
         if metric_tables
         else pd.DataFrame()
     )
-    return summary, all_metrics, parameters
+    adaptive_trials = (
+        pd.concat(adaptive_trial_tables, ignore_index=True)
+        if adaptive_trial_tables else pd.DataFrame()
+    )
+    return summary, all_metrics, parameters, adaptive_trials
 
 
 def _plot_condition_lines(
@@ -602,7 +692,7 @@ def create_aggregate_outputs(
                 marker="o", label=label,
             )
         axes[0].set_title("Before: centered raw AC RMS")
-        axes[1].set_title("After: >0.5 Hz dynamic RMS")
+        axes[1].set_title("After: 0.5–40 Hz dynamic RMS")
         for axis in axes:
             axis.set_xlabel("Angle (degree)")
             axis.set_ylabel("RMS (nm)")
@@ -702,6 +792,29 @@ def create_aggregate_outputs(
             )
         plt.close(figure)
 
+        if "adaptive_k_used" in avmd.columns and avmd["adaptive_k_used"].any():
+            adaptive_summary = (
+                avmd.groupby(["condition", "angle_deg"])
+                .agg(
+                    file_count=("relative_path", "size"),
+                    median_selected_k=("mode_count", "median"),
+                    minimum_selected_k=("mode_count", "min"),
+                    maximum_selected_k=("mode_count", "max"),
+                    median_adaptive_k_score=("adaptive_k_score", "median"),
+                )
+                .reset_index()
+            )
+            adaptive_summary.to_csv(
+                output_root / "adaptive_k_angle_summary.csv", index=False
+            )
+            _plot_condition_lines(
+                adaptive_summary,
+                "median_selected_k",
+                "Median selected K",
+                "Per-file adaptive-K selected by angle and condition",
+                output_root / "08_adaptive_k_by_angle.png",
+            )
+
 
 def write_summary(
     preprocessing_summary: pd.DataFrame,
@@ -724,21 +837,26 @@ def write_summary(
         f"- 前處理失敗：{failed_preprocessing}",
         f"- 移除完全重複列：{duplicates}",
         "- 缺值或非數字列只在資料品質表中記錄，不會把偏心或高振動當成錯誤刪除。",
-        "- 原始波長保留供角度與平均波長比較；0.5 Hz高通後訊號供AVMD分析。",
-        "- 分析上限接近200 Hz取樣率的Nyquist頻率100 Hz，邊界成分需保守判讀。",
+        "- 原始波長保留供角度與平均波長比較；0.5–40 Hz動態訊號供AVMD分析。",
     ]
     if avmd_settings is not None:
         lines.extend(
             [
                 "",
-                "## AVMD共用設定",
+                "## AVMD初始共用設定",
                 "",
                 f"- 參考檔：{avmd_settings['reference_file']}",
-                f"- K：{avmd_settings['mode_count']}",
+                f"- 初始K：{avmd_settings['mode_count']}",
                 f"- alpha：{avmd_settings['alpha']}",
                 f"- 選擇分數：{avmd_settings['selection_score']:.6f}",
             ]
         )
+        if avmd_settings.get("adaptive_k_enabled", False):
+            lines.append(
+                "- 每個CSV再由adaptive-K迴圈依重建、模態重疊、Welch支持度與複雜度選擇K。"
+            )
+        else:
+            lines.append("- adaptive-K已停用，全部CSV沿用參考檔的K。")
     if not method_summary.empty:
         completed = int(method_summary["status"].eq("ok").sum())
         failed = int(method_summary["status"].eq("failed").sum())
@@ -758,6 +876,12 @@ def main() -> None:
     arguments = parse_arguments()
     if arguments.sampling_rate <= 0:
         raise ValueError("sampling-rate必須大於0。")
+    if not 0.5 < arguments.dynamic_lowpass_hz < arguments.sampling_rate / 2.0:
+        raise ValueError("dynamic-lowpass-hz必須介於0.5 Hz與Nyquist頻率之間。")
+    if arguments.adaptive_k_min < 2:
+        raise ValueError("adaptive-k-min至少必須為2。")
+    if arguments.adaptive_k_max < arguments.adaptive_k_min:
+        raise ValueError("adaptive-k-max不得小於adaptive-k-min。")
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
 
     inventory = discover_archive_csvs(arguments.input_dir)
@@ -773,6 +897,7 @@ def main() -> None:
         arguments.sampling_rate,
         arguments.output_dir,
         make_per_file_plots=not arguments.skip_per_file_plots,
+        dynamic_lowpass_hz=arguments.dynamic_lowpass_hz,
     )
     preprocessing_summary.to_csv(
         arguments.output_dir / "preprocessing_before_after.csv", index=False
@@ -808,14 +933,16 @@ def main() -> None:
             arguments.avmd_k,
             arguments.avmd_alpha,
             arguments.output_dir,
+            arguments.dynamic_lowpass_hz,
         )
+        avmd_settings["adaptive_k_enabled"] = not arguments.disable_adaptive_k
 
     valid_paths = set(
         preprocessing_summary.loc[
             preprocessing_summary["status"].eq("ok"), "relative_path"
         ].astype(str)
     )
-    method_summary, mode_metrics, parameters = run_mode_analysis(
+    method_summary, mode_metrics, parameters, adaptive_k_trials = run_mode_analysis(
         inventory,
         valid_paths,
         arguments.methods,
@@ -823,9 +950,17 @@ def main() -> None:
         avmd_settings,
         arguments.output_dir,
         make_per_file_plots=not arguments.skip_per_file_plots,
+        dynamic_lowpass_hz=arguments.dynamic_lowpass_hz,
+        adaptive_k_enabled=not arguments.disable_adaptive_k,
+        adaptive_k_min=arguments.adaptive_k_min,
+        adaptive_k_max=arguments.adaptive_k_max,
+        adaptive_k_steps=arguments.adaptive_k_steps,
     )
     method_summary.to_csv(arguments.output_dir / "method_file_summary.csv", index=False)
     mode_metrics.to_csv(arguments.output_dir / "all_mode_metrics.csv", index=False)
+    adaptive_k_trials.to_csv(
+        arguments.output_dir / "adaptive_k_trials.csv", index=False
+    )
 
     if avmd_settings is not None:
         parameters["AVMD_SHARED_SELECTION"] = avmd_settings
@@ -844,9 +979,14 @@ def main() -> None:
         "file_count": len(inventory),
         "remove_exact_duplicates": True,
         "dynamic_highpass_hz": 0.5,
+        "dynamic_lowpass_hz": arguments.dynamic_lowpass_hz,
         "angle_lowpass_hz": 0.1,
         "avmd_candidate_k": arguments.avmd_k,
         "avmd_candidate_alpha": arguments.avmd_alpha,
+        "adaptive_k_enabled": not arguments.disable_adaptive_k,
+        "adaptive_k_min": arguments.adaptive_k_min,
+        "adaptive_k_max": arguments.adaptive_k_max,
+        "adaptive_k_steps": arguments.adaptive_k_steps,
     }
     (arguments.output_dir / "analysis_settings.json").write_text(
         json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8"
