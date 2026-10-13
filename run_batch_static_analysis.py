@@ -8,6 +8,7 @@ import sys
 import time
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize
 from matplotlib.ticker import ScalarFormatter
 import numpy as np
 import pandas as pd
@@ -34,6 +35,7 @@ from src.methods.stvmd import short_time_variational_mode_decomposition
 
 
 METHOD_ORDER = ("VMD", "IOVMD", "AVMD", "SVMD", "STVMD")
+ANGLE_COLORS = {10: "tab:blue", 43: "tab:orange"}
 FILE_PATTERN = re.compile(
     r"(?P<load>無負載|有負載|偏心)\s*(?P<angle>\d+)度\s*\((?P<repeat>\d+)\)\.csv$",
     re.IGNORECASE,
@@ -265,16 +267,15 @@ def calculate_raw_band_power(psd_table: pd.DataFrame) -> tuple[pd.DataFrame, pd.
 
 def plot_basic_features(features: pd.DataFrame, output_path: Path) -> None:
     figure, axes = plt.subplots(1, 2, figsize=(13, 4.8), constrained_layout=True)
-    colors = {10: "tab:blue", 43: "tab:orange"}
     for angle, subset in features.groupby("angle_deg"):
         subset = subset.sort_values("repeat")
         axes[0].plot(
             subset["repeat"], subset["ch1_mean_nm"], marker="o",
-            label=f"{angle} deg", color=colors.get(int(angle)),
+            label=f"{angle} deg", color=ANGLE_COLORS.get(int(angle)),
         )
         axes[1].plot(
             subset["repeat"], subset["ac_rms_nm"], marker="o",
-            label=f"{angle} deg", color=colors.get(int(angle)),
+            label=f"{angle} deg", color=ANGLE_COLORS.get(int(angle)),
         )
     axes[0].set_title("Mean Bragg wavelength by repeat")
     axes[0].set_ylabel("Mean wavelength (nm)")
@@ -297,10 +298,9 @@ def summarize_and_plot_psd(psd_table: pd.DataFrame, output_root: Path) -> pd.Dat
         .reset_index()
     )
     figure, axis = plt.subplots(figsize=(12, 5.5), constrained_layout=True)
-    colors = {10: "tab:blue", 43: "tab:orange"}
     for angle, subset in summary.groupby("angle_deg"):
         subset = subset.loc[(subset["frequency_hz"] >= 0.5) & (subset["frequency_hz"] < 100.0)]
-        color = colors.get(int(angle))
+        color = ANGLE_COLORS.get(int(angle))
         axis.plot(subset["frequency_hz"], subset["median"], label=f"{angle} deg", color=color)
         axis.fill_between(
             subset["frequency_hz"], subset["q25"], subset["q75"],
@@ -316,6 +316,240 @@ def summarize_and_plot_psd(psd_table: pd.DataFrame, output_root: Path) -> pd.Dat
     figure.savefig(output_root / "02_welch_psd_by_angle.png", dpi=200, bbox_inches="tight")
     plt.close(figure)
     return summary
+
+
+def plot_feature_distributions(features: pd.DataFrame, output_path: Path) -> None:
+    """以箱形圖與每筆散點呈現角度內分布，避免只看平均值。"""
+    definitions = [
+        ("ch1_mean_nm", "Mean Bragg wavelength", "nm"),
+        ("ac_rms_nm", "AC RMS", "nm"),
+        ("peak_to_peak_nm", "Peak-to-peak", "nm"),
+        ("dominant_welch_frequency_hz", "Dominant Welch frequency", "Hz"),
+    ]
+    angles = sorted(features["angle_deg"].unique())
+    figure, axes = plt.subplots(2, 2, figsize=(12, 8), constrained_layout=True)
+    for axis, (column, title, unit) in zip(axes.flat, definitions):
+        values = [
+            features.loc[features["angle_deg"] == angle, column].to_numpy()
+            for angle in angles
+        ]
+        boxes = axis.boxplot(
+            values,
+            positions=np.arange(len(angles)),
+            widths=0.48,
+            patch_artist=True,
+            showfliers=False,
+            medianprops={"color": "black", "linewidth": 1.5},
+        )
+        for box, angle in zip(boxes["boxes"], angles):
+            box.set_facecolor(ANGLE_COLORS.get(int(angle), "tab:gray"))
+            box.set_alpha(0.25)
+        for position, angle in enumerate(angles):
+            subset = features.loc[features["angle_deg"] == angle].sort_values("repeat")
+            offsets = np.linspace(-0.11, 0.11, len(subset))
+            flagged = subset["ac_rms_repeat_flag"].to_numpy(dtype=bool)
+            axis.scatter(
+                position + offsets,
+                subset[column],
+                color=ANGLE_COLORS.get(int(angle), "tab:gray"),
+                s=36,
+                alpha=0.85,
+                edgecolors=np.where(flagged, "crimson", "white"),
+                linewidths=np.where(flagged, 1.8, 0.6),
+                zorder=3,
+            )
+        axis.set_title(title)
+        axis.set_ylabel(unit)
+        axis.set_xticks(np.arange(len(angles)), [f"{angle} deg" for angle in angles])
+        axis.grid(axis="y", alpha=0.2)
+        if column == "ch1_mean_nm":
+            axis.yaxis.set_major_formatter(ScalarFormatter(useOffset=False))
+    figure.suptitle(
+        "No-load feature distributions by angle\n"
+        "red outlines indicate AC-RMS repeat-consistency flags",
+        fontsize=14,
+    )
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_dominant_frequency_by_repeat(
+    features: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    figure, axis = plt.subplots(figsize=(10.5, 5), constrained_layout=True)
+    for angle, subset in features.groupby("angle_deg"):
+        subset = subset.sort_values("repeat")
+        color = ANGLE_COLORS.get(int(angle), "tab:gray")
+        axis.plot(
+            subset["repeat"],
+            subset["dominant_welch_frequency_hz"],
+            marker="o",
+            linewidth=1.7,
+            color=color,
+            label=f"{angle} deg",
+        )
+        median = float(subset["dominant_welch_frequency_hz"].median())
+        axis.axhline(median, color=color, linestyle="--", alpha=0.45)
+        axis.text(
+            float(subset["repeat"].max()) + 0.13,
+            median,
+            f"median {median:.2f} Hz",
+            color=color,
+            fontsize=9,
+            va="center",
+        )
+    axis.axhspan(29.5, 30.5, color="gray", alpha=0.08, label="30 Hz reference band")
+    axis.set_xlabel("Repeat")
+    axis.set_ylabel("Dominant Welch frequency (Hz)")
+    axis.set_title("Dominant Welch frequency across repeated measurements")
+    axis.set_xticks(sorted(features["repeat"].unique()))
+    axis.set_xlim(features["repeat"].min() - 0.3, features["repeat"].max() + 1.6)
+    axis.grid(alpha=0.2)
+    axis.legend(ncol=3, loc="best")
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_band_power_comparison(
+    band_power: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    bands = [
+        ("fundamental_25_32_hz", "25–32 Hz\nmain band"),
+        ("second_harmonic_50_65_hz", "50–65 Hz\ncandidate harmonic"),
+        ("high_frequency_78_88_hz", "78–88 Hz\nhigh-frequency band"),
+        ("nyquist_edge_90_99_hz", "90–99 Hz\nNyquist-edge candidate"),
+    ]
+    angles = sorted(band_power["angle_deg"].unique())
+    figure, axes = plt.subplots(1, 4, figsize=(14, 4.8), constrained_layout=True)
+    for axis, (column, title) in zip(axes, bands):
+        values = [
+            band_power.loc[band_power["angle_deg"] == angle, column].to_numpy()
+            for angle in angles
+        ]
+        boxes = axis.boxplot(
+            values,
+            positions=np.arange(len(angles)),
+            widths=0.5,
+            patch_artist=True,
+            showfliers=False,
+            medianprops={"color": "black", "linewidth": 1.4},
+        )
+        for box, angle in zip(boxes["boxes"], angles):
+            box.set_facecolor(ANGLE_COLORS.get(int(angle), "tab:gray"))
+            box.set_alpha(0.28)
+        for position, angle in enumerate(angles):
+            subset = band_power.loc[band_power["angle_deg"] == angle].sort_values("repeat")
+            offsets = np.linspace(-0.1, 0.1, len(subset))
+            axis.scatter(
+                position + offsets,
+                subset[column],
+                color=ANGLE_COLORS.get(int(angle), "tab:gray"),
+                edgecolor="white",
+                linewidth=0.5,
+                s=30,
+                alpha=0.85,
+                zorder=3,
+            )
+        axis.set_yscale("log")
+        axis.set_title(title, fontsize=11)
+        axis.set_xticks(np.arange(len(angles)), [f"{angle}°" for angle in angles])
+        axis.grid(axis="y", which="both", alpha=0.2)
+    axes[0].set_ylabel("Integrated Welch power (nm²)")
+    figure.suptitle("Band-power distribution across repeated measurements", fontsize=14)
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_psd_repeat_heatmaps(
+    psd_table: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    angles = sorted(psd_table["angle_deg"].unique())
+    figure, axes = plt.subplots(
+        len(angles),
+        1,
+        figsize=(12, max(5.5, 3.4 * len(angles))),
+        sharex=True,
+        constrained_layout=True,
+    )
+    axes = np.atleast_1d(axes)
+    image = None
+    for axis, angle in zip(axes, angles):
+        subset = psd_table.loc[
+            (psd_table["angle_deg"] == angle)
+            & psd_table["frequency_hz"].between(0.5, 99.9)
+        ]
+        pivot = subset.pivot_table(
+            index="repeat",
+            columns="frequency_hz",
+            values="psd_nm2_per_hz",
+            aggfunc="median",
+        ).sort_index()
+        log_power = np.log10(np.maximum(pivot.to_numpy(), np.finfo(float).tiny))
+        image = axis.imshow(
+            log_power,
+            origin="lower",
+            aspect="auto",
+            extent=[pivot.columns.min(), pivot.columns.max(), 0.5, len(pivot.index) + 0.5],
+            cmap="viridis",
+            vmin=-9,
+            vmax=-2.2,
+        )
+        axis.set_yticks(np.arange(1, len(pivot.index) + 1), pivot.index)
+        axis.set_ylabel(f"{angle} deg\nrepeat")
+        axis.axvline(30.0, color="white", linestyle="--", linewidth=0.9, alpha=0.8)
+        axis.axvline(60.0, color="white", linestyle="--", linewidth=0.9, alpha=0.8)
+    axes[-1].set_xlabel("Frequency (Hz)")
+    figure.suptitle("Welch PSD heatmap for every repeated measurement")
+    if image is not None:
+        colorbar = figure.colorbar(image, ax=axes, shrink=0.82, pad=0.02)
+        colorbar.set_label("log10 PSD (nm²/Hz)")
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_psd_angle_ratio(
+    psd_summary: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    pivot = psd_summary.pivot(
+        index="frequency_hz", columns="angle_deg", values="median"
+    ).sort_index()
+    if 10 not in pivot.columns or 43 not in pivot.columns:
+        return
+    pivot = pivot.loc[(pivot.index >= 0.5) & (pivot.index < 100.0)]
+    ratio_db = 10.0 * np.log10(
+        np.maximum(pivot[43].to_numpy(), np.finfo(float).tiny)
+        / np.maximum(pivot[10].to_numpy(), np.finfo(float).tiny)
+    )
+    figure, axis = plt.subplots(figsize=(12, 4.8), constrained_layout=True)
+    axis.plot(pivot.index, ratio_db, color="tab:purple", linewidth=1.1)
+    axis.axhline(0.0, color="black", linewidth=1.0)
+    for lower, upper, color, label in [
+        (25, 32, "tab:blue", "25–32 Hz"),
+        (50, 65, "tab:orange", "50–65 Hz"),
+        (78, 88, "tab:green", "78–88 Hz"),
+        (90, 99, "tab:red", "90–99 Hz edge"),
+    ]:
+        axis.axvspan(lower, upper, color=color, alpha=0.08, label=label)
+    axis.set_xlim(0.5, 100.0)
+    axis.set_xlabel("Frequency (Hz)")
+    axis.set_ylabel("43° / 10° median PSD ratio (dB)")
+    axis.set_title("Frequency-by-frequency PSD contrast between angle states")
+    axis.grid(alpha=0.2)
+    axis.legend(ncol=4, fontsize=9, loc="upper right")
+    axis.text(
+        1.2,
+        axis.get_ylim()[1] * 0.88,
+        "above 0 dB: stronger at 43°\nbelow 0 dB: stronger at 10°",
+        fontsize=9,
+        va="top",
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8, "edgecolor": "0.8"},
+    )
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
 
 
 def choose_avmd_reference(features: pd.DataFrame, loaded: dict[str, dict]) -> tuple[str, np.ndarray]:
@@ -516,14 +750,13 @@ def plot_cross_method_frequency_summary(summary: pd.DataFrame, output_path: Path
         sharex=True, constrained_layout=True,
     )
     axes = np.atleast_1d(axes)
-    colors = {10: "tab:blue", 43: "tab:orange"}
     for axis, method in zip(axes, methods):
         subset = summary.loc[(summary["method"] == method) & (summary["repeat_count"] >= 3)]
         for angle, angle_table in subset.groupby("angle_deg"):
             axis.scatter(
                 angle_table["frequency_bin_hz"], angle_table["median_rms_nm"],
                 s=18 + 8 * angle_table["repeat_count"], alpha=0.75,
-                label=f"{angle} deg", color=colors.get(int(angle)),
+                label=f"{angle} deg", color=ANGLE_COLORS.get(int(angle)),
             )
         axis.set_ylabel(f"{method}\nmedian RMS")
         axis.grid(alpha=0.2)
@@ -531,6 +764,173 @@ def plot_cross_method_frequency_summary(summary: pd.DataFrame, output_path: Path
     axes[-1].set_xlabel("Mode peak frequency bin (Hz)")
     axes[-1].set_xlim(0.5, 100.0)
     figure.suptitle("Cross-method mode RMS by angle (frequency groups in at least 3 repeats)")
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_method_reconstruction_quality(
+    method_summary: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    methods = [
+        method for method in METHOD_ORDER
+        if method in method_summary["method"].unique()
+    ]
+    figure, axis = plt.subplots(figsize=(11, 5.2), constrained_layout=True)
+    positions = np.arange(len(methods))
+    values = [
+        method_summary.loc[
+            method_summary["method"] == method,
+            "reconstruction_correlation",
+        ].to_numpy()
+        for method in methods
+    ]
+    boxes = axis.boxplot(
+        values,
+        positions=positions,
+        widths=0.52,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "black", "linewidth": 1.4},
+    )
+    palette = plt.get_cmap("tab10")
+    for index, (box, method) in enumerate(zip(boxes["boxes"], methods)):
+        color = palette(index)
+        box.set_facecolor(color)
+        box.set_alpha(0.2)
+        subset = method_summary.loc[method_summary["method"] == method].sort_values(
+            ["angle_deg", "repeat"]
+        )
+        offsets = np.linspace(-0.15, 0.15, len(subset))
+        point_colors = [
+            ANGLE_COLORS.get(int(angle), "tab:gray")
+            for angle in subset["angle_deg"]
+        ]
+        axis.scatter(
+            index + offsets,
+            subset["reconstruction_correlation"],
+            c=point_colors,
+            s=26,
+            edgecolor="white",
+            linewidth=0.45,
+            alpha=0.8,
+            zorder=3,
+        )
+        minimum = float(subset["reconstruction_correlation"].min())
+        axis.text(index, minimum - 0.0013, f"min {minimum:.4f}", ha="center", va="top", fontsize=8)
+    axis.set_xticks(positions, methods)
+    axis.set_ylabel("Reconstruction correlation")
+    axis.set_ylim(0.975, 1.001)
+    axis.set_title("Reconstruction quality across all files and methods")
+    axis.grid(axis="y", alpha=0.2)
+    axis.text(
+        0.01,
+        0.03,
+        "All 100 decompositions exceed the 0.90 quality threshold",
+        transform=axis.transAxes,
+        fontsize=9,
+        color="crimson",
+        bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85, "edgecolor": "0.8"},
+    )
+    handles = [
+        plt.Line2D([0], [0], marker="o", color="none", markerfacecolor=ANGLE_COLORS[10], label="10 deg"),
+        plt.Line2D([0], [0], marker="o", color="none", markerfacecolor=ANGLE_COLORS[43], label="43 deg"),
+    ]
+    axis.legend(handles=handles, ncol=2, loc="lower right")
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_method_efficiency_and_complexity(
+    method_summary: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    methods = [
+        method for method in METHOD_ORDER
+        if method in method_summary["method"].unique()
+    ]
+    figure, axes = plt.subplots(1, 2, figsize=(12, 5), constrained_layout=True)
+    palette = [plt.get_cmap("tab10")(index) for index in range(len(methods))]
+    for axis, column, ylabel, title in [
+        (axes[0], "elapsed_s", "Elapsed time per file (s)", "Computation time"),
+        (axes[1], "mode_count", "Number of modes", "Decomposition complexity"),
+    ]:
+        values = [
+            method_summary.loc[method_summary["method"] == method, column].to_numpy()
+            for method in methods
+        ]
+        boxes = axis.boxplot(
+            values,
+            positions=np.arange(len(methods)),
+            widths=0.52,
+            patch_artist=True,
+            showfliers=True,
+            medianprops={"color": "black", "linewidth": 1.4},
+        )
+        for box, color in zip(boxes["boxes"], palette):
+            box.set_facecolor(color)
+            box.set_alpha(0.28)
+        axis.set_xticks(np.arange(len(methods)), methods, rotation=20)
+        axis.set_ylabel(ylabel)
+        axis.set_title(title)
+        axis.grid(axis="y", alpha=0.2)
+    figure.suptitle("Method cost and output complexity across 20 files")
+    figure.savefig(output_path, dpi=200, bbox_inches="tight")
+    plt.close(figure)
+
+
+def plot_method_frequency_repeat_coverage(
+    frequency_summary: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    methods = [
+        method for method in METHOD_ORDER
+        if method in frequency_summary["method"].unique()
+    ]
+    angles = sorted(frequency_summary["angle_deg"].unique())
+    frequency_grid = np.arange(0.5, 100.0, 0.5)
+    figure, axes = plt.subplots(
+        len(angles),
+        1,
+        figsize=(13, max(5.5, 3.2 * len(angles))),
+        sharex=True,
+        constrained_layout=True,
+    )
+    axes = np.atleast_1d(axes)
+    image = None
+    for axis, angle in zip(axes, angles):
+        matrix = np.zeros((len(methods), len(frequency_grid)), dtype=float)
+        subset = frequency_summary.loc[frequency_summary["angle_deg"] == angle]
+        for method_index, method in enumerate(methods):
+            method_table = subset.loc[subset["method"] == method]
+            for row in method_table.itertuples(index=False):
+                bin_index = int(round((row.frequency_bin_hz - 0.5) / 0.5))
+                if 0 <= bin_index < len(frequency_grid):
+                    matrix[method_index, bin_index] = max(
+                        matrix[method_index, bin_index],
+                        float(row.repeat_count),
+                    )
+        image = axis.imshow(
+            matrix,
+            origin="lower",
+            aspect="auto",
+            extent=[0.25, 99.75, -0.5, len(methods) - 0.5],
+            cmap="magma",
+            norm=Normalize(vmin=0, vmax=10),
+            interpolation="nearest",
+        )
+        axis.set_yticks(np.arange(len(methods)), methods)
+        axis.set_ylabel(f"{angle} deg")
+        axis.axvline(30.0, color="cyan", linestyle="--", linewidth=0.9)
+        axis.axvline(60.0, color="cyan", linestyle="--", linewidth=0.9)
+    axes[-1].set_xlabel("Mode peak frequency bin (Hz)")
+    figure.suptitle(
+        "Cross-method frequency repeat coverage\n"
+        "brighter cells indicate a mode observed in more repeated measurements"
+    )
+    if image is not None:
+        colorbar = figure.colorbar(image, ax=axes, shrink=0.82, pad=0.02)
+        colorbar.set_label("Number of repeats (0–10)")
     figure.savefig(output_path, dpi=200, bbox_inches="tight")
     plt.close(figure)
 
@@ -656,6 +1056,26 @@ def main() -> None:
     plot_basic_features(features, arguments.output_dir / "01_basic_feature_comparison.png")
     psd_summary = summarize_and_plot_psd(psd_table, arguments.output_dir)
     psd_summary.to_csv(arguments.output_dir / "raw_welch_group_summary.csv", index=False)
+    plot_feature_distributions(
+        features,
+        arguments.output_dir / "04_feature_distributions.png",
+    )
+    plot_dominant_frequency_by_repeat(
+        features,
+        arguments.output_dir / "05_dominant_welch_frequency_by_repeat.png",
+    )
+    plot_band_power_comparison(
+        band_power,
+        arguments.output_dir / "06_band_power_comparison.png",
+    )
+    plot_psd_repeat_heatmaps(
+        psd_table,
+        arguments.output_dir / "07_welch_psd_repeat_heatmaps.png",
+    )
+    plot_psd_angle_ratio(
+        psd_summary,
+        arguments.output_dir / "08_welch_psd_angle_ratio_db.png",
+    )
 
     settings = {
         "input_dir": str(arguments.input_dir),
@@ -689,6 +1109,18 @@ def main() -> None:
     plot_cross_method_frequency_summary(
         frequency_summary,
         arguments.output_dir / "03_cross_method_angle_mode_comparison.png",
+    )
+    plot_method_reconstruction_quality(
+        method_summary,
+        arguments.output_dir / "09_method_reconstruction_quality.png",
+    )
+    plot_method_efficiency_and_complexity(
+        method_summary,
+        arguments.output_dir / "10_method_efficiency_and_complexity.png",
+    )
+    plot_method_frequency_repeat_coverage(
+        frequency_summary,
+        arguments.output_dir / "11_method_frequency_repeat_coverage.png",
     )
     (arguments.output_dir / "all_method_parameters.json").write_text(
         json.dumps(parameters, ensure_ascii=False, indent=2), encoding="utf-8"

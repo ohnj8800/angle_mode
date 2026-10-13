@@ -5,8 +5,8 @@ import pandas as pd
 
 
 REQUIRED_COLUMNS = {"time", "CH1"}
-TIME_COLUMN_ALIASES = ("time", "時間戳記")
-CH1_COLUMN_ALIASES = ("CH1", "Ch1", "ch1")
+TIME_COLUMN_ALIASES = ("time", "時間戳記", "ts")
+CH1_COLUMN_ALIASES = ("CH1", "Ch1", "ch1", "wl")
 
 
 def _find_column_alias(
@@ -80,6 +80,7 @@ def parse_logger_time(time_column: pd.Series) -> np.ndarray:
 def load_fbg_csv(
     csv_path: str | Path,
     sampling_rate: float = 200.0,
+    remove_exact_duplicates: bool = True,
 ) -> tuple[pd.DataFrame, dict]:
     """
     讀取FBG CSV，檢查資料格式，並建立均勻時間軸。
@@ -110,6 +111,13 @@ def load_fbg_csv(
 
     raw = pd.read_csv(csv_path, encoding="utf-8-sig")
     raw.columns = raw.columns.astype(str).str.strip()
+
+    original_row_count = len(raw)
+    original_missing_value_count = int(raw.isna().sum().sum())
+    exact_duplicate_row_count = int(raw.duplicated().sum())
+
+    if remove_exact_duplicates and exact_duplicate_row_count:
+        raw = raw.loc[~raw.duplicated()].reset_index(drop=True)
 
     original_columns = raw.columns.tolist()
     time_column = _find_column_alias(
@@ -162,6 +170,8 @@ def load_fbg_csv(
         "file_name": csv_path.name,
         "source_time_column": time_column,
         "source_ch1_column": ch1_column,
+        "original_row_count": original_row_count,
+        "cleaned_row_count": len(data),
         "sample_count": len(data),
         "sampling_rate_hz": sampling_rate,
         "duration_s": float((len(data) - 1) / sampling_rate),
@@ -171,8 +181,11 @@ def load_fbg_csv(
         "ch1_min_nm": float(data["ch1_nm"].min()),
         "ch1_max_nm": float(data["ch1_nm"].max()),
         "invalid_ch1_count": invalid_ch1_count,
-        "missing_value_count": int(raw.isna().sum().sum()),
-        "exact_duplicate_row_count": int(raw.duplicated().sum()),
+        "missing_value_count": original_missing_value_count,
+        "exact_duplicate_row_count": exact_duplicate_row_count,
+        "removed_exact_duplicate_row_count": (
+            exact_duplicate_row_count if remove_exact_duplicates else 0
+        ),
         "raw_time_start": str(raw_time.iloc[0]),
         "raw_time_end": str(raw_time.iloc[-1]),
         "raw_time_start_s": float(logger_seconds[0]),

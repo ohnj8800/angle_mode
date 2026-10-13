@@ -79,6 +79,70 @@ python .\run_batch_static_analysis.py --basic-only
 批次結果預設輸出至 `results/batch_no_load_30hz/`。程式接受原專案的
 `time`、`CH1` 欄位，也接受解調器匯出的 `時間戳記`、`Ch1` 欄位。
 
+批次流程會自動輸出下列圖表：
+
+- 基本特徵逐次比較與角度分布圖。
+- Welch PSD中位數、每筆PSD熱圖、主頻逐次變化與43°／10° PSD比值。
+- 25–32、50–65、78–88與90–99 Hz頻帶功率分布。
+- 五種方法的模態頻率比較、重建品質、運算時間／模態數與跨重複量測頻率覆蓋率。
+
+其中90–99 Hz接近200 Hz取樣率的Nyquist邊界，只應視為候選高頻成分。
+
+### 260720整包資料：先前處理，再執行AVMD
+
+將解壓後的原始資料放在：
+
+```text
+data/raw/260720/
+```
+
+先只執行168個CSV的資料品質檢查與前處理對照：
+
+```powershell
+python .\run_archive_avmd_analysis.py --preprocess-only
+```
+
+確認 `results/archive_avmd/preprocessing_before_after.csv` 沒有失敗後，
+執行整包AVMD：
+
+```powershell
+python .\run_archive_avmd_analysis.py
+```
+
+若先測試流程，可限制前3個檔案並減少AVMD參數候選：
+
+```powershell
+python .\run_archive_avmd_analysis.py --max-files 3 --avmd-k 4 --avmd-alpha 500
+```
+
+這個入口預設只執行AVMD，但VMD、IOVMD、SVMD與STVMD都保留。例如：
+
+```powershell
+python .\run_archive_avmd_analysis.py --methods VMD IOVMD AVMD SVMD STVMD
+```
+
+前處理原則如下：
+
+- 接受 `時間戳記/Ch1`、`time/CH1` 與 `ts/wl` 欄名。
+- 移除完全重複列並記錄數量，不把偏心或高振動資料當成雜訊刪除。
+- 依已知200 Hz取樣率建立均勻時間軸。
+- 原始波長保留供角度與平均波長比較。
+- 0.1 Hz低通分量供慢變趨勢觀察；0.5 Hz高通訊號供AVMD分析。
+- 每個CSV輸出前處理前後時域、Welch PSD及AVMD模態圖。
+
+主要總覽結果：
+
+- `01_data_quality_overview.png`
+- `02_angle_vs_mean_wavelength.png`
+- `03_angle_vs_rms_before_after.png`
+- `04_angle_vs_frequency_before_after.png`
+- `05_angle_vs_avmd_dominant_frequency.png`
+- `06_angle_vs_avmd_energy_ratio.png`
+- `07_avmd_reconstruction_quality.png`
+- `preprocessing_before_after.csv`
+- `method_file_summary.csv`
+- `all_mode_metrics.csv`
+
 ## 分析流程
 
 | 步驟 | 功能 |

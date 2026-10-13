@@ -9,5 +9,7 @@ __pycache__/
 *.rar
 *.zip
 data/raw/no_load_30hz/
+data/raw/260720/
+results/archive_avmd/
 .DS_Store
 Thumbs.db
