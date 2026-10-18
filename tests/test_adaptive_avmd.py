@@ -25,5 +25,6 @@ def test_adaptive_k_stays_within_bounds_and_records_trials() -> None:
 
     assert 3 <= result["best_mode_count"] <= 5
     assert len(result["trials"]) >= 2
-    assert set(result["evaluated_mode_counts"]).issubset({3, 4, 5})
+    assert result["evaluated_mode_counts"] == [3, 4, 5]
+    assert result["search_strategy"] == "global"
     assert np.isfinite(result["best_score"])

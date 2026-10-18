@@ -251,3 +251,94 @@ def evaluate_welch_support(
     }
 
     return output_metrics, psd_information
+
+
+def select_welch_guided_mode(
+    mode_metrics: pd.DataFrame,
+    psd_information: dict,
+    minimum_frequency_hz: float,
+    maximum_frequency_hz: float,
+    maximum_frequency_difference_hz: float = 3.0,
+) -> dict:
+    """Select the IMF that best represents vibration in a known motor band.
+
+    The energy-dominant IMF is intentionally kept separate: slow structural
+    motion can contain more energy than the rotating component.  This selector
+    first finds the strongest Welch bin inside the requested motor band, then
+    chooses the IMF whose peak is nearest to that reference frequency.
+    """
+    if maximum_frequency_hz <= minimum_frequency_hz:
+        raise ValueError(
+            "maximum_frequency_hz must be greater than minimum_frequency_hz."
+        )
+    if maximum_frequency_difference_hz <= 0:
+        raise ValueError("maximum_frequency_difference_hz must be positive.")
+    if mode_metrics.empty:
+        raise ValueError("mode_metrics is empty.")
+
+    frequency_hz = np.asarray(psd_information["frequency_hz"], dtype=float)
+    psd = np.asarray(psd_information["psd"], dtype=float)
+    band_mask = (
+        np.isfinite(frequency_hz)
+        & np.isfinite(psd)
+        & (frequency_hz >= minimum_frequency_hz)
+        & (frequency_hz <= maximum_frequency_hz)
+    )
+
+    candidates = mode_metrics.loc[
+        mode_metrics["peak_frequency_hz"].notna()
+        & mode_metrics["peak_frequency_hz"].between(
+            minimum_frequency_hz, maximum_frequency_hz, inclusive="both"
+        )
+    ].copy()
+
+    if not np.any(band_mask):
+        fallback = mode_metrics.loc[mode_metrics["energy_ratio"].idxmax()]
+        return {
+            "mode": str(fallback["mode"]),
+            "mode_peak_frequency_hz": float(fallback["peak_frequency_hz"]),
+            "mode_energy_ratio": float(fallback["energy_ratio"]),
+            "reference_welch_frequency_hz": float("nan"),
+            "frequency_difference_hz": float("nan"),
+            "frequency_agreement": False,
+            "selection_reason": "energy_fallback_no_mode_in_tracking_band",
+        }
+
+    selected_frequency = frequency_hz[band_mask]
+    selected_psd = psd[band_mask]
+    reference_frequency = float(selected_frequency[int(np.argmax(selected_psd))])
+    if candidates.empty:
+        fallback = mode_metrics.loc[mode_metrics["energy_ratio"].idxmax()]
+        fallback_frequency = float(fallback["peak_frequency_hz"])
+        difference = abs(fallback_frequency - reference_frequency)
+        return {
+            "mode": str(fallback["mode"]),
+            "mode_peak_frequency_hz": fallback_frequency,
+            "mode_energy_ratio": float(fallback["energy_ratio"]),
+            "reference_welch_frequency_hz": reference_frequency,
+            "frequency_difference_hz": difference,
+            "frequency_agreement": False,
+            "selection_reason": "energy_fallback_no_mode_in_tracking_band",
+        }
+    candidates["tracking_difference_hz"] = (
+        candidates["peak_frequency_hz"] - reference_frequency
+    ).abs()
+    # Frequency agreement is the primary criterion.  Energy only breaks ties
+    # caused by the finite FFT resolution.
+    selected = candidates.sort_values(
+        ["tracking_difference_hz", "energy_ratio"],
+        ascending=[True, False],
+    ).iloc[0]
+    difference = float(selected["tracking_difference_hz"])
+
+    return {
+        "mode": str(selected["mode"]),
+        "mode_peak_frequency_hz": float(selected["peak_frequency_hz"]),
+        "mode_energy_ratio": float(selected["energy_ratio"]),
+        "reference_welch_frequency_hz": reference_frequency,
+        "frequency_difference_hz": difference,
+        "frequency_agreement": bool(
+            difference <= maximum_frequency_difference_hz
+        ),
+        "selection_reason": "nearest_mode_to_motor_band_welch_peak",
+    }

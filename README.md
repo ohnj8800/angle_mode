@@ -109,9 +109,14 @@ python .\run_archive_avmd_analysis.py --preprocess-only
 python .\run_archive_avmd_analysis.py
 ```
 
-新版流程預設將AVMD輸入限制在0.5–40 Hz，先由代表檔選擇初始K與alpha，
-再對每個CSV執行adaptive-K迴圈。adaptive-K會比較重建誤差、模態頻譜重疊、
-模態相關性、Welch PSD支持度與模態數複雜度，因此不同檔案可以得到不同K。
+新版流程先由代表檔選擇初始K與alpha，再對每個CSV執行adaptive-K。
+預設會完整比較允許的K範圍，評分包含重建誤差、模態分離程度、Welch支持度、
+馬達頻率一致性與較小權重的模態數複雜度，因此不會只因K較小就停在K=3。
+
+程式同時保留兩種不同意義的結果：`dominant_mode_*`仍代表能量最大的IMF；
+`tracking_mode_*`則代表20–40 Hz馬達頻帶內，最接近Welch主峰的IMF。
+低頻模態不會被刪除，只是不再被誤稱為馬達主頻。若馬達轉速不在20–40 Hz，
+可用`--tracking-frequency-min-hz`與`--tracking-frequency-max-hz`調整。
 
 先用3個檔案測試新版adaptive-K：
 
@@ -125,6 +130,12 @@ python .\run_archive_avmd_analysis.py --max-files 3 --skip-per-file-plots
 python .\run_archive_avmd_analysis.py --disable-adaptive-k
 ```
 
+若只是快速檢查，可改用較快的相鄰K搜尋：
+
+```powershell
+python .\run_archive_avmd_analysis.py --adaptive-k-search local
+```
+
 若先測試流程，可限制前3個檔案並減少AVMD參數候選：
 
 ```powershell
@@ -136,6 +147,39 @@ python .\run_archive_avmd_analysis.py --max-files 3 --avmd-k 4 --avmd-alpha 500
 ```powershell
 python .\run_archive_avmd_analysis.py --methods VMD IOVMD AVMD SVMD STVMD
 ```
+
+### 1015 Hippo 1000 Hz雙通道資料
+
+新版亦支援Hippo匯出的無標題CSV。每列會自動解析時間、通道編號、
+峰值數與波長；同時間資料會合併，缺少的短區段會重建至1000 Hz均勻時間軸，
+多峰時則依波長連續性選峰。檔名為`error.csv`的檔案會自動排除。
+
+將資料放入`data/raw/1015/`後，先檢查CH1前處理：
+
+```powershell
+python .\run_archive_avmd_analysis.py `
+  --input-dir ".\data\raw\1015" `
+  --output-dir ".\results\1015_avmd_ch1" `
+  --sampling-rate 1000 `
+  --dynamic-lowpass-hz 100 `
+  --channel CH1 `
+  --preprocess-only `
+  --skip-per-file-plots
+```
+
+確認104個有效檔案均為`ok`後，執行CH1完整AVMD：
+
+```powershell
+python .\run_archive_avmd_analysis.py `
+  --input-dir ".\data\raw\1015" `
+  --output-dir ".\results\1015_avmd_ch1" `
+  --sampling-rate 1000 `
+  --dynamic-lowpass-hz 100 `
+  --channel CH1
+```
+
+若要分析CH2，將兩處`CH1`改為`CH2`，並使用不同輸出資料夾
+`results/1015_avmd_ch2`以免覆蓋CH1結果。
 
 前處理原則如下：
 
@@ -156,10 +200,12 @@ python .\run_archive_avmd_analysis.py --methods VMD IOVMD AVMD SVMD STVMD
 - `06_angle_vs_avmd_energy_ratio.png`
 - `07_avmd_reconstruction_quality.png`
 - `08_adaptive_k_by_angle.png`
+- `09_welch_avmd_frequency_agreement.png`
 - `preprocessing_before_after.csv`
 - `method_file_summary.csv`
 - `all_mode_metrics.csv`
 - `adaptive_k_trials.csv`
+- `avmd_frequency_review_candidates.csv`
 
 ## 分析流程
 

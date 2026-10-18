@@ -18,7 +18,7 @@ from run_batch_static_analysis import METHOD_ORDER, decompose_signal
 from src.common.archive_metadata import discover_archive_csvs
 from src.common.io import load_fbg_csv
 from src.common.metrics import calculate_mode_metrics, calculate_reconstruction_metrics
-from src.common.postprocessing import evaluate_welch_support
+from src.common.postprocessing import evaluate_welch_support, select_welch_guided_mode
 from src.common.preprocessing import calculate_welch_psd, preprocess_fbg_signal
 from src.methods.avmd import select_adaptive_avmd_k, select_avmd_parameters
 
@@ -36,7 +36,8 @@ CONDITION_LABELS = {
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "遞迴分析260720整包FBG資料；保留五種方法，但預設只執行AVMD。"
+            "遞迴分析整包FBG資料；支援舊CSV與Hippo雙通道CSV，"
+            "保留五種方法但預設只執行AVMD。"
         )
     )
     parser.add_argument(
@@ -50,6 +51,12 @@ def parse_arguments() -> argparse.Namespace:
         default=PROJECT_ROOT / "results" / "archive_avmd",
     )
     parser.add_argument("--sampling-rate", type=float, default=200.0)
+    parser.add_argument(
+        "--channel",
+        choices=("CH1", "CH2"),
+        default="CH1",
+        help="選擇要分析的FBG通道；預設CH1。",
+    )
     parser.add_argument(
         "--methods",
         nargs="+",
@@ -78,6 +85,30 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--adaptive-k-min", type=int, default=3)
     parser.add_argument("--adaptive-k-max", type=int, default=9)
     parser.add_argument("--adaptive-k-steps", type=int, default=3)
+    parser.add_argument(
+        "--adaptive-k-search",
+        choices=("global", "local"),
+        default="global",
+        help="global會完整比較K範圍；local較快但可能停在局部最佳。",
+    )
+    parser.add_argument(
+        "--tracking-frequency-min-hz",
+        type=float,
+        default=20.0,
+        help="馬達旋轉頻率追蹤下限；不影響其他IMF保留。預設20 Hz。",
+    )
+    parser.add_argument(
+        "--tracking-frequency-max-hz",
+        type=float,
+        default=40.0,
+        help="馬達旋轉頻率追蹤上限；不影響其他IMF保留。預設40 Hz。",
+    )
+    parser.add_argument(
+        "--max-welch-avmd-difference-hz",
+        type=float,
+        default=3.0,
+        help="Welch主峰與AVMD追蹤模態最大容許差異；預設3 Hz。",
+    )
     parser.add_argument(
         "--disable-adaptive-k",
         action="store_true",
@@ -211,9 +242,12 @@ def plot_preprocessing_comparison(
 def analyze_preprocessing(
     inventory: list[dict],
     sampling_rate: float,
+    channel: str,
     output_root: Path,
     make_per_file_plots: bool,
     dynamic_lowpass_hz: float,
+    tracking_frequency_min_hz: float,
+    tracking_frequency_max_hz: float,
 ) -> pd.DataFrame:
     rows = []
     for index, metadata in enumerate(inventory, start=1):
@@ -223,6 +257,7 @@ def analyze_preprocessing(
                 metadata["file_path"],
                 sampling_rate=sampling_rate,
                 remove_exact_duplicates=True,
+                channel=channel,
             )
             preprocessing = preprocess_fbg_signal(
                 data["ch1_nm"].to_numpy(),
@@ -252,6 +287,12 @@ def analyze_preprocessing(
                 ),
                 "processed_dominant_welch_frequency_hz": _dominant_frequency(
                     processed_frequency_hz, processed_psd
+                ),
+                "motor_band_dominant_welch_frequency_hz": _dominant_frequency(
+                    processed_frequency_hz,
+                    processed_psd,
+                    minimum_hz=tracking_frequency_min_hz,
+                    maximum_hz=tracking_frequency_max_hz,
                 ),
                 "raw_power_below_0_5_hz": _band_power(
                     raw_frequency_hz, raw_psd, 0.0, 0.5
@@ -290,6 +331,7 @@ def choose_avmd_reference(
     preprocessing_summary: pd.DataFrame,
     inventory_by_relative_path: dict[str, dict],
     sampling_rate: float,
+    channel: str,
     dynamic_lowpass_hz: float,
 ) -> tuple[str, np.ndarray]:
     valid = preprocessing_summary.loc[preprocessing_summary["status"] == "ok"].copy()
@@ -311,6 +353,7 @@ def choose_avmd_reference(
     data, _ = load_fbg_csv(
         metadata["file_path"], sampling_rate=sampling_rate,
         remove_exact_duplicates=True,
+        channel=channel,
     )
     preprocessing = preprocess_fbg_signal(
         data["ch1_nm"].to_numpy(),
@@ -324,15 +367,20 @@ def prepare_avmd_settings(
     preprocessing_summary: pd.DataFrame,
     inventory_by_relative_path: dict[str, dict],
     sampling_rate: float,
+    channel: str,
     candidate_k: list[int],
     candidate_alpha: list[float],
     output_root: Path,
     dynamic_lowpass_hz: float,
+    tracking_frequency_min_hz: float,
+    tracking_frequency_max_hz: float,
+    maximum_frequency_difference_hz: float,
 ) -> dict:
     reference_path, reference_signal = choose_avmd_reference(
         preprocessing_summary,
         inventory_by_relative_path,
         sampling_rate,
+        channel,
         dynamic_lowpass_hz,
     )
     selection = select_avmd_parameters(
@@ -342,6 +390,9 @@ def prepare_avmd_settings(
         candidate_alphas=candidate_alpha,
         maximum_iterations=300,
         maximum_frequency_hz=dynamic_lowpass_hz,
+        tracking_minimum_frequency_hz=tracking_frequency_min_hz,
+        tracking_maximum_frequency_hz=tracking_frequency_max_hz,
+        tracking_tolerance_hz=maximum_frequency_difference_hz,
     )
     selection["trials"].to_csv(
         output_root / "avmd_parameter_trials.csv", index=False
@@ -407,6 +458,8 @@ def plot_method_modes(
         axes[mode_index + 1, 1].set_xlim(0, 100)
         axes[mode_index + 1, 1].set_title(
             f"peak={row['peak_frequency_hz']:.2f} Hz, energy={row['energy_ratio']:.1%}"
+            + (" | energy max" if row.get("is_energy_dominant_mode", False) else "")
+            + (" | motor tracked" if row.get("is_tracking_mode", False) else "")
         )
     axes[-1, 0].set_xlabel("Time (s)")
     axes[-1, 1].set_xlabel("Frequency (Hz)")
@@ -419,6 +472,7 @@ def run_mode_analysis(
     valid_relative_paths: set[str],
     methods: list[str],
     sampling_rate: float,
+    channel: str,
     avmd_settings: dict | None,
     output_root: Path,
     make_per_file_plots: bool,
@@ -427,6 +481,10 @@ def run_mode_analysis(
     adaptive_k_min: int,
     adaptive_k_max: int,
     adaptive_k_steps: int,
+    adaptive_k_search: str,
+    tracking_frequency_min_hz: float,
+    tracking_frequency_max_hz: float,
+    maximum_frequency_difference_hz: float,
 ) -> tuple[pd.DataFrame, pd.DataFrame, dict, pd.DataFrame]:
     summaries = []
     metric_tables = []
@@ -439,6 +497,7 @@ def run_mode_analysis(
         data, _ = load_fbg_csv(
             metadata["file_path"], sampling_rate=sampling_rate,
             remove_exact_duplicates=True,
+            channel=channel,
         )
         preprocessing = preprocess_fbg_signal(
             data["ch1_nm"].to_numpy(),
@@ -468,6 +527,10 @@ def run_mode_analysis(
                         maximum_steps=adaptive_k_steps,
                         maximum_iterations=300,
                         maximum_frequency_hz=dynamic_lowpass_hz,
+                        tracking_minimum_frequency_hz=tracking_frequency_min_hz,
+                        tracking_maximum_frequency_hz=tracking_frequency_max_hz,
+                        tracking_tolerance_hz=maximum_frequency_difference_hz,
+                        search_strategy=adaptive_k_search,
                     )
                     file_avmd_settings = {
                         **avmd_settings,
@@ -484,7 +547,7 @@ def run_mode_analysis(
                     method, signal, sampling_rate, file_avmd_settings
                 )
                 metrics = calculate_mode_metrics(modes, sampling_rate, centers)
-                metrics, _ = evaluate_welch_support(
+                metrics, psd_information = evaluate_welch_support(
                     metrics,
                     signal,
                     sampling_rate=sampling_rate,
@@ -495,6 +558,17 @@ def run_mode_analysis(
                     signal, np.sum(modes, axis=0)
                 )
                 dominant = metrics.loc[metrics["energy_ratio"].idxmax()]
+                tracking = select_welch_guided_mode(
+                    metrics,
+                    psd_information,
+                    minimum_frequency_hz=tracking_frequency_min_hz,
+                    maximum_frequency_hz=tracking_frequency_max_hz,
+                    maximum_frequency_difference_hz=maximum_frequency_difference_hz,
+                )
+                metrics["is_energy_dominant_mode"] = metrics["mode"].eq(
+                    str(dominant["mode"])
+                )
+                metrics["is_tracking_mode"] = metrics["mode"].eq(tracking["mode"])
                 elapsed = time.perf_counter() - started
                 metrics.insert(0, "relative_path", relative_path)
                 metrics.insert(1, "file_name", metadata["file_name"])
@@ -536,6 +610,21 @@ def run_mode_analysis(
                             dominant["peak_frequency_hz"]
                         ),
                         "dominant_mode_energy_ratio": float(dominant["energy_ratio"]),
+                        "tracking_mode": tracking["mode"],
+                        "tracking_mode_peak_frequency_hz": tracking[
+                            "mode_peak_frequency_hz"
+                        ],
+                        "tracking_mode_energy_ratio": tracking["mode_energy_ratio"],
+                        "tracking_reference_welch_frequency_hz": tracking[
+                            "reference_welch_frequency_hz"
+                        ],
+                        "tracking_frequency_difference_hz": tracking[
+                            "frequency_difference_hz"
+                        ],
+                        "tracking_frequency_agreement": tracking[
+                            "frequency_agreement"
+                        ],
+                        "tracking_selection_reason": tracking["selection_reason"],
                         "welch_support_ratio": float(
                             metrics["welch_psd_supported"].astype(float).mean()
                         ),
@@ -615,7 +704,7 @@ def plot_data_quality_overview(
         "Exact duplicates removed": int(
             successful["removed_exact_duplicate_row_count"].fillna(0).sum()
         ),
-        "Invalid CH1 removed": int(
+        "Missing/invalid signal rows": int(
             successful["invalid_ch1_count"].fillna(0).sum()
         ),
         "Missing cells recorded": int(
@@ -648,6 +737,8 @@ def create_aggregate_outputs(
     preprocessing_summary: pd.DataFrame,
     method_summary: pd.DataFrame,
     output_root: Path,
+    dynamic_lowpass_hz: float,
+    maximum_frequency_difference_hz: float = 3.0,
 ) -> None:
     fixed = preprocessing_summary.loc[
         preprocessing_summary["status"].eq("ok")
@@ -692,7 +783,9 @@ def create_aggregate_outputs(
                 marker="o", label=label,
             )
         axes[0].set_title("Before: centered raw AC RMS")
-        axes[1].set_title("After: 0.5–40 Hz dynamic RMS")
+        axes[1].set_title(
+            f"After: 0.5–{dynamic_lowpass_hz:g} Hz dynamic RMS"
+        )
         for axis in axes:
             axis.set_xlabel("Angle (degree)")
             axis.set_ylabel("RMS (nm)")
@@ -750,6 +843,18 @@ def create_aggregate_outputs(
                 median_avmd_dominant_energy_ratio=(
                     "dominant_mode_energy_ratio", "median"
                 ),
+                median_motor_welch_frequency_hz=(
+                    "tracking_reference_welch_frequency_hz", "median"
+                ),
+                median_avmd_tracking_frequency_hz=(
+                    "tracking_mode_peak_frequency_hz", "median"
+                ),
+                median_tracking_difference_hz=(
+                    "tracking_frequency_difference_hz", "median"
+                ),
+                frequency_agreement_rate=(
+                    "tracking_frequency_agreement", "mean"
+                ),
                 median_reconstruction_correlation=(
                     "reconstruction_correlation", "median"
                 ),
@@ -757,13 +862,36 @@ def create_aggregate_outputs(
             .reset_index()
         )
         avmd_angle.to_csv(output_root / "avmd_angle_summary.csv", index=False)
-        _plot_condition_lines(
-            avmd_angle,
-            "median_avmd_dominant_frequency_hz",
-            "AVMD dominant-mode frequency (Hz)",
-            "Angle versus AVMD dominant-mode frequency",
+        figure, axis = plt.subplots(figsize=(11, 6.5), constrained_layout=True)
+        colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+        for color, (condition, group) in zip(
+            colors, avmd_angle.groupby("condition")
+        ):
+            ordered = group.sort_values("angle_deg")
+            label = CONDITION_LABELS.get(condition, condition)
+            axis.plot(
+                ordered["angle_deg"],
+                ordered["median_motor_welch_frequency_hz"],
+                marker="o", linestyle="--", color=color,
+                label=f"{label} | Welch",
+            )
+            axis.plot(
+                ordered["angle_deg"],
+                ordered["median_avmd_tracking_frequency_hz"],
+                marker="s", linestyle="-", color=color,
+                label=f"{label} | AVMD tracked IMF",
+            )
+        axis.set_xlabel("Angle (degree)")
+        axis.set_ylabel("Motor-band frequency (Hz)")
+        axis.set_title("Angle versus motor frequency: Welch reference and AVMD")
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize=8, ncols=2)
+        figure.savefig(
             output_root / "05_angle_vs_avmd_dominant_frequency.png",
+            dpi=180,
+            bbox_inches="tight",
         )
+        plt.close(figure)
         _plot_condition_lines(
             avmd_angle,
             "median_avmd_dominant_energy_ratio",
@@ -815,12 +943,64 @@ def create_aggregate_outputs(
                 output_root / "08_adaptive_k_by_angle.png",
             )
 
+        review_columns = [
+            "relative_path", "condition", "angle_deg", "repeat", "mode_count",
+            "tracking_reference_welch_frequency_hz",
+            "tracking_mode", "tracking_mode_peak_frequency_hz",
+            "tracking_frequency_difference_hz", "tracking_frequency_agreement",
+        ]
+        review = avmd.loc[
+            ~avmd["tracking_frequency_agreement"].fillna(False), review_columns
+        ].sort_values("tracking_frequency_difference_hz", ascending=False)
+        review.to_csv(
+            output_root / "avmd_frequency_review_candidates.csv", index=False
+        )
+
+        figure, axis = plt.subplots(figsize=(7.5, 7), constrained_layout=True)
+        for condition, group in avmd.groupby("condition"):
+            axis.scatter(
+                group["tracking_reference_welch_frequency_hz"],
+                group["tracking_mode_peak_frequency_hz"],
+                alpha=0.7,
+                label=CONDITION_LABELS.get(condition, condition),
+            )
+        finite_values = np.concatenate([
+            avmd["tracking_reference_welch_frequency_hz"].dropna().to_numpy(),
+            avmd["tracking_mode_peak_frequency_hz"].dropna().to_numpy(),
+        ])
+        if finite_values.size:
+            lower, upper = float(finite_values.min()), float(finite_values.max())
+            axis.plot([lower, upper], [lower, upper], "k--", label="Perfect agreement")
+            axis.fill_between(
+                [lower, upper],
+                [lower - maximum_frequency_difference_hz, upper - maximum_frequency_difference_hz],
+                [lower + maximum_frequency_difference_hz, upper + maximum_frequency_difference_hz],
+                color="0.8", alpha=0.35,
+                label=f"±{maximum_frequency_difference_hz:g} Hz",
+            )
+        axis.set_xlabel("Welch motor-band peak (Hz)")
+        axis.set_ylabel("AVMD tracked IMF peak (Hz)")
+        axis.set_title("Welch–AVMD motor-frequency agreement")
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize=8)
+        figure.savefig(
+            output_root / "09_welch_avmd_frequency_agreement.png",
+            dpi=180,
+            bbox_inches="tight",
+        )
+        plt.close(figure)
+
 
 def write_summary(
     preprocessing_summary: pd.DataFrame,
     method_summary: pd.DataFrame,
     avmd_settings: dict | None,
     output_path: Path,
+    channel: str,
+    dynamic_lowpass_hz: float,
+    tracking_frequency_min_hz: float,
+    tracking_frequency_max_hz: float,
+    maximum_frequency_difference_hz: float,
 ) -> None:
     successful_preprocessing = int(preprocessing_summary["status"].eq("ok").sum())
     failed_preprocessing = int(preprocessing_summary["status"].eq("failed").sum())
@@ -837,7 +1017,15 @@ def write_summary(
         f"- 前處理失敗：{failed_preprocessing}",
         f"- 移除完全重複列：{duplicates}",
         "- 缺值或非數字列只在資料品質表中記錄，不會把偏心或高振動當成錯誤刪除。",
-        "- 原始波長保留供角度與平均波長比較；0.5–40 Hz動態訊號供AVMD分析。",
+        f"- 分析通道：{channel}。",
+        (
+            "- 原始波長保留供角度與平均波長比較；"
+            f"0.5–{dynamic_lowpass_hz:g} Hz動態訊號供AVMD分析。"
+        ),
+        (
+            f"- 馬達頻率另在{tracking_frequency_min_hz:g}–"
+            f"{tracking_frequency_max_hz:g} Hz內，以Welch峰值引導AVMD模態追蹤。"
+        ),
     ]
     if avmd_settings is not None:
         lines.extend(
@@ -853,7 +1041,8 @@ def write_summary(
         )
         if avmd_settings.get("adaptive_k_enabled", False):
             lines.append(
-                "- 每個CSV再由adaptive-K迴圈依重建、模態重疊、Welch支持度與複雜度選擇K。"
+                "- 每個CSV再以完整adaptive-K搜尋，依重建、模態分離、Welch支持、"
+                "馬達頻率一致性與複雜度選擇K。"
             )
         else:
             lines.append("- adaptive-K已停用，全部CSV沿用參考檔的K。")
@@ -869,6 +1058,21 @@ def write_summary(
                 f"- 失敗：{failed}",
             ]
         )
+        avmd = method_summary.loc[
+            method_summary["status"].eq("ok")
+            & method_summary["method"].eq("AVMD")
+        ]
+        if not avmd.empty and "tracking_frequency_agreement" in avmd.columns:
+            agreement_count = int(
+                avmd["tracking_frequency_agreement"].fillna(False).sum()
+            )
+            lines.extend(
+                [
+                    f"- Welch與AVMD頻率差不超過{maximum_frequency_difference_hz:g} Hz："
+                    f"{agreement_count}/{len(avmd)}。",
+                    "- 未通過者已列入avmd_frequency_review_candidates.csv，供人工確認。",
+                ]
+            )
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -882,6 +1086,17 @@ def main() -> None:
         raise ValueError("adaptive-k-min至少必須為2。")
     if arguments.adaptive_k_max < arguments.adaptive_k_min:
         raise ValueError("adaptive-k-max不得小於adaptive-k-min。")
+    if arguments.tracking_frequency_min_hz < 0.5:
+        raise ValueError("tracking-frequency-min-hz不得低於0.5 Hz。")
+    if (
+        arguments.tracking_frequency_max_hz
+        <= arguments.tracking_frequency_min_hz
+    ):
+        raise ValueError("tracking-frequency-max-hz必須大於下限。")
+    if arguments.tracking_frequency_max_hz > arguments.dynamic_lowpass_hz:
+        raise ValueError("追蹤頻帶上限不得超過dynamic-lowpass-hz。")
+    if arguments.max_welch_avmd_difference_hz <= 0:
+        raise ValueError("max-welch-avmd-difference-hz必須大於0。")
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
 
     inventory = discover_archive_csvs(arguments.input_dir)
@@ -895,9 +1110,12 @@ def main() -> None:
     preprocessing_summary = analyze_preprocessing(
         inventory,
         arguments.sampling_rate,
+        arguments.channel,
         arguments.output_dir,
         make_per_file_plots=not arguments.skip_per_file_plots,
         dynamic_lowpass_hz=arguments.dynamic_lowpass_hz,
+        tracking_frequency_min_hz=arguments.tracking_frequency_min_hz,
+        tracking_frequency_max_hz=arguments.tracking_frequency_max_hz,
     )
     preprocessing_summary.to_csv(
         arguments.output_dir / "preprocessing_before_after.csv", index=False
@@ -909,13 +1127,22 @@ def main() -> None:
 
     if arguments.preprocess_only:
         create_aggregate_outputs(
-            preprocessing_summary, pd.DataFrame(), arguments.output_dir
+            preprocessing_summary,
+            pd.DataFrame(),
+            arguments.output_dir,
+            arguments.dynamic_lowpass_hz,
+            arguments.max_welch_avmd_difference_hz,
         )
         write_summary(
             preprocessing_summary,
             pd.DataFrame(),
             None,
             arguments.output_dir / "ANALYSIS_SUMMARY.md",
+            arguments.channel,
+            arguments.dynamic_lowpass_hz,
+            arguments.tracking_frequency_min_hz,
+            arguments.tracking_frequency_max_hz,
+            arguments.max_welch_avmd_difference_hz,
         )
         print(f"整包前處理完成：{arguments.output_dir}", flush=True)
         return
@@ -930,10 +1157,14 @@ def main() -> None:
             preprocessing_summary,
             inventory_by_relative_path,
             arguments.sampling_rate,
+            arguments.channel,
             arguments.avmd_k,
             arguments.avmd_alpha,
             arguments.output_dir,
             arguments.dynamic_lowpass_hz,
+            arguments.tracking_frequency_min_hz,
+            arguments.tracking_frequency_max_hz,
+            arguments.max_welch_avmd_difference_hz,
         )
         avmd_settings["adaptive_k_enabled"] = not arguments.disable_adaptive_k
 
@@ -947,6 +1178,7 @@ def main() -> None:
         valid_paths,
         arguments.methods,
         arguments.sampling_rate,
+        arguments.channel,
         avmd_settings,
         arguments.output_dir,
         make_per_file_plots=not arguments.skip_per_file_plots,
@@ -955,6 +1187,10 @@ def main() -> None:
         adaptive_k_min=arguments.adaptive_k_min,
         adaptive_k_max=arguments.adaptive_k_max,
         adaptive_k_steps=arguments.adaptive_k_steps,
+        adaptive_k_search=arguments.adaptive_k_search,
+        tracking_frequency_min_hz=arguments.tracking_frequency_min_hz,
+        tracking_frequency_max_hz=arguments.tracking_frequency_max_hz,
+        maximum_frequency_difference_hz=arguments.max_welch_avmd_difference_hz,
     )
     method_summary.to_csv(arguments.output_dir / "method_file_summary.csv", index=False)
     mode_metrics.to_csv(arguments.output_dir / "all_mode_metrics.csv", index=False)
@@ -969,12 +1205,17 @@ def main() -> None:
     )
 
     create_aggregate_outputs(
-        preprocessing_summary, method_summary, arguments.output_dir
+        preprocessing_summary,
+        method_summary,
+        arguments.output_dir,
+        arguments.dynamic_lowpass_hz,
+        arguments.max_welch_avmd_difference_hz,
     )
     settings = {
         "input_dir": str(arguments.input_dir),
         "output_dir": str(arguments.output_dir),
         "sampling_rate_hz": arguments.sampling_rate,
+        "channel": arguments.channel,
         "methods": arguments.methods,
         "file_count": len(inventory),
         "remove_exact_duplicates": True,
@@ -987,6 +1228,10 @@ def main() -> None:
         "adaptive_k_min": arguments.adaptive_k_min,
         "adaptive_k_max": arguments.adaptive_k_max,
         "adaptive_k_steps": arguments.adaptive_k_steps,
+        "adaptive_k_search": arguments.adaptive_k_search,
+        "tracking_frequency_min_hz": arguments.tracking_frequency_min_hz,
+        "tracking_frequency_max_hz": arguments.tracking_frequency_max_hz,
+        "max_welch_avmd_difference_hz": arguments.max_welch_avmd_difference_hz,
     }
     (arguments.output_dir / "analysis_settings.json").write_text(
         json.dumps(settings, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -996,6 +1241,11 @@ def main() -> None:
         method_summary,
         avmd_settings,
         arguments.output_dir / "ANALYSIS_SUMMARY.md",
+        arguments.channel,
+        arguments.dynamic_lowpass_hz,
+        arguments.tracking_frequency_min_hz,
+        arguments.tracking_frequency_max_hz,
+        arguments.max_welch_avmd_difference_hz,
     )
     print(f"整包分析完成：{arguments.output_dir}", flush=True)
 

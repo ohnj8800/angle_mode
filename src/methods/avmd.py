@@ -10,7 +10,7 @@ from src.common.metrics import (
     calculate_reconstruction_metrics,
     calculate_spectral_overlap_matrix,
 )
-from src.common.postprocessing import evaluate_welch_support
+from src.common.postprocessing import evaluate_welch_support, select_welch_guided_mode
 from src.common.preprocessing import calculate_welch_psd
 from src.common.vmd import variational_mode_decomposition
 
@@ -134,6 +134,9 @@ def evaluate_avmd_candidate(
     welch_tolerance_hz: float = 1.0,
     minimum_frequency_hz: float = 0.5,
     maximum_frequency_hz: float | None = None,
+    tracking_minimum_frequency_hz: float | None = None,
+    tracking_maximum_frequency_hz: float | None = None,
+    tracking_tolerance_hz: float = 3.0,
 ) -> dict:
     """
     執行一組 K、alpha 候選參數，並計算選模所需品質指標。
@@ -189,7 +192,7 @@ def evaluate_avmd_candidate(
         absolute=True,
     )
 
-    mode_metrics, _ = evaluate_welch_support(
+    mode_metrics, psd_information = evaluate_welch_support(
         mode_metrics=mode_metrics,
         reference_signal=signal,
         sampling_rate=sampling_rate,
@@ -200,6 +203,22 @@ def evaluate_avmd_candidate(
         mode_metrics["welch_psd_supported"]
         .astype(float)
         .mean()
+    )
+
+    if tracking_minimum_frequency_hz is None:
+        tracking_minimum_frequency_hz = minimum_frequency_hz
+    if tracking_maximum_frequency_hz is None:
+        tracking_maximum_frequency_hz = (
+            maximum_frequency_hz
+            if maximum_frequency_hz is not None
+            else sampling_rate / 2.0
+        )
+    tracking = select_welch_guided_mode(
+        mode_metrics,
+        psd_information,
+        minimum_frequency_hz=tracking_minimum_frequency_hz,
+        maximum_frequency_hz=tracking_maximum_frequency_hz,
+        maximum_frequency_difference_hz=tracking_tolerance_hz,
     )
 
     return {
@@ -223,6 +242,14 @@ def evaluate_avmd_candidate(
         "mean_spectral_overlap": mean_spectral_overlap,
         "mean_waveform_correlation": mean_waveform_correlation,
         "welch_support_ratio": welch_support_ratio,
+        "tracking_reference_welch_frequency_hz": tracking[
+            "reference_welch_frequency_hz"
+        ],
+        "tracking_mode_frequency_hz": tracking["mode_peak_frequency_hz"],
+        "tracking_frequency_difference_hz": tracking[
+            "frequency_difference_hz"
+        ],
+        "tracking_frequency_agreement": tracking["frequency_agreement"],
         "converged": bool(vmd_result["converged"]),
         "iterations": int(vmd_result["iterations"]),
         "valid": True,
@@ -270,16 +297,15 @@ def select_avmd_parameters(
     welch_tolerance_hz: float = 1.0,
     minimum_frequency_hz: float = 0.5,
     maximum_frequency_hz: float | None = None,
+    tracking_minimum_frequency_hz: float | None = None,
+    tracking_maximum_frequency_hz: float | None = None,
+    tracking_tolerance_hz: float = 3.0,
 ) -> dict:
     """
     使用正常運轉參考訊號，自動選擇 AVMD 的 K 與 alpha。
 
-    選擇分數越低越好，包含：
-    35% 重建誤差
-    25% 模態頻譜重疊
-    15% 模態波形相關
-    15% Welch PSD 未支持比例
-    10% 模態數複雜度
+    選擇分數越低越好，包含重建誤差、模態分離程度、Welch支持度、
+    指定馬達頻帶內的頻率一致性，以及較小權重的模態數複雜度。
     """
     reference_signal = np.asarray(
         reference_signal,
@@ -315,6 +341,9 @@ def select_avmd_parameters(
                     welch_tolerance_hz=welch_tolerance_hz,
                     minimum_frequency_hz=minimum_frequency_hz,
                     maximum_frequency_hz=maximum_frequency_hz,
+                    tracking_minimum_frequency_hz=tracking_minimum_frequency_hz,
+                    tracking_maximum_frequency_hz=tracking_maximum_frequency_hz,
+                    tracking_tolerance_hz=tracking_tolerance_hz,
                 )
             except Exception as error:
                 record = {
@@ -327,6 +356,10 @@ def select_avmd_parameters(
                     "mean_spectral_overlap": np.nan,
                     "mean_waveform_correlation": np.nan,
                     "welch_support_ratio": np.nan,
+                    "tracking_reference_welch_frequency_hz": np.nan,
+                    "tracking_mode_frequency_hz": np.nan,
+                    "tracking_frequency_difference_hz": np.nan,
+                    "tracking_frequency_agreement": False,
                     "converged": False,
                     "iterations": 0,
                     "valid": False,
@@ -375,6 +408,12 @@ def select_avmd_parameters(
     successful_trials["unsupported_welch_ratio"] = (
         1.0 - successful_trials["welch_support_ratio"]
     )
+    successful_trials["tracking_frequency_loss"] = np.clip(
+        successful_trials["tracking_frequency_difference_hz"]
+        / tracking_tolerance_hz,
+        0.0,
+        2.0,
+    ).fillna(2.0)
 
     if maximum_k == minimum_k:
         successful_trials["normalized_complexity"] = 0.0
@@ -384,15 +423,17 @@ def select_avmd_parameters(
         ) / (maximum_k - minimum_k)
 
     successful_trials["selection_score"] = (
-        0.35
+        0.30
         * successful_trials["normalized_reconstruction_error"]
-        + 0.25
+        + 0.20
         * successful_trials["normalized_spectral_overlap"]
-        + 0.15
+        + 0.10
         * successful_trials["normalized_waveform_correlation"]
         + 0.15
         * successful_trials["unsupported_welch_ratio"]
-        + 0.10
+        + 0.20
+        * successful_trials["tracking_frequency_loss"]
+        + 0.05
         * successful_trials["normalized_complexity"]
     )
 
@@ -449,6 +490,7 @@ def _absolute_adaptive_k_score(
     candidate: dict,
     minimum_mode_count: int,
     maximum_mode_count: int,
+    tracking_tolerance_hz: float = 3.0,
 ) -> float:
     """Create a comparable quality score for K candidates from one file."""
     reconstruction_loss = np.clip(
@@ -471,6 +513,14 @@ def _absolute_adaptive_k_score(
         0.0,
         1.0,
     )
+    tracking_difference = float(
+        candidate.get("tracking_frequency_difference_hz", np.nan)
+    )
+    tracking_loss = (
+        np.clip(tracking_difference / tracking_tolerance_hz, 0.0, 2.0)
+        if np.isfinite(tracking_difference)
+        else 2.0
+    )
     if maximum_mode_count == minimum_mode_count:
         complexity_loss = 0.0
     else:
@@ -479,11 +529,12 @@ def _absolute_adaptive_k_score(
         ) / (maximum_mode_count - minimum_mode_count)
     convergence_penalty = 0.0 if candidate["converged"] else 0.25
     return float(
-        0.35 * reconstruction_loss
-        + 0.25 * overlap_loss
-        + 0.15 * correlation_loss
+        0.30 * reconstruction_loss
+        + 0.20 * overlap_loss
+        + 0.10 * correlation_loss
         + 0.15 * unsupported_loss
-        + 0.10 * complexity_loss
+        + 0.20 * tracking_loss
+        + 0.05 * complexity_loss
         + convergence_penalty
     )
 
@@ -501,13 +552,16 @@ def select_adaptive_avmd_k(
     welch_tolerance_hz: float = 1.0,
     minimum_frequency_hz: float = 0.5,
     maximum_frequency_hz: float | None = None,
+    tracking_minimum_frequency_hz: float | None = None,
+    tracking_maximum_frequency_hz: float | None = None,
+    tracking_tolerance_hz: float = 3.0,
+    search_strategy: str = "global",
 ) -> dict:
     """
-    Iteratively adapt K for one signal while keeping the shared alpha fixed.
+    Adapt K for one signal while keeping the shared alpha fixed.
 
-    The loop evaluates the current K and its immediate neighbours. It moves to
-    the best neighbour only when the score improves sufficiently, then repeats.
-    This limits runtime while allowing different files to use different K.
+    ``global`` evaluates every allowed K and avoids a local minimum at K=3.
+    ``local`` retains the faster neighbour search for quick exploratory runs.
     """
     if minimum_mode_count < 2:
         raise ValueError("minimum_mode_count must be at least 2.")
@@ -515,6 +569,8 @@ def select_adaptive_avmd_k(
         raise ValueError("maximum_mode_count must be >= minimum_mode_count.")
     if maximum_steps < 1:
         raise ValueError("maximum_steps must be at least 1.")
+    if search_strategy not in {"global", "local"}:
+        raise ValueError("search_strategy must be 'global' or 'local'.")
 
     signal = np.asarray(signal, dtype=float).reshape(-1)
     current_k = int(np.clip(
@@ -537,11 +593,15 @@ def select_adaptive_avmd_k(
                     welch_tolerance_hz=welch_tolerance_hz,
                     minimum_frequency_hz=minimum_frequency_hz,
                     maximum_frequency_hz=maximum_frequency_hz,
+                    tracking_minimum_frequency_hz=tracking_minimum_frequency_hz,
+                    tracking_maximum_frequency_hz=tracking_maximum_frequency_hz,
+                    tracking_tolerance_hz=tracking_tolerance_hz,
                 )
                 record["adaptive_k_score"] = _absolute_adaptive_k_score(
                     record,
                     minimum_mode_count=minimum_mode_count,
                     maximum_mode_count=maximum_mode_count,
+                    tracking_tolerance_hz=tracking_tolerance_hz,
                 )
             except Exception as error:
                 record = {
@@ -555,26 +615,36 @@ def select_adaptive_avmd_k(
             cache[k] = record
         return cache[k]
 
-    stop_reason = "maximum_steps"
-    for _ in range(maximum_steps):
-        current = evaluate(current_k)
-        neighbour_k = [
-            k for k in (current_k - 1, current_k + 1)
-            if minimum_mode_count <= k <= maximum_mode_count
-        ]
-        neighbours = [evaluate(k) for k in neighbour_k]
-        best = min([current, *neighbours], key=lambda row: row["adaptive_k_score"])
-        improvement = current["adaptive_k_score"] - best["adaptive_k_score"]
-        if int(best["mode_count"]) == current_k:
-            stop_reason = "local_minimum"
-            break
-        if improvement < minimum_score_improvement:
-            stop_reason = "improvement_below_threshold"
-            break
-        current_k = int(best["mode_count"])
-        path.append(current_k)
+    if search_strategy == "global":
+        candidates = [evaluate(k) for k in range(minimum_mode_count, maximum_mode_count + 1)]
+        best_candidate = min(candidates, key=lambda row: row["adaptive_k_score"])
+        current_k = int(best_candidate["mode_count"])
+        if path[-1] != current_k:
+            path.append(current_k)
+        stop_reason = "global_search_complete"
     else:
-        evaluate(current_k)
+        stop_reason = "maximum_steps"
+        for _ in range(maximum_steps):
+            current = evaluate(current_k)
+            neighbour_k = [
+                k for k in (current_k - 1, current_k + 1)
+                if minimum_mode_count <= k <= maximum_mode_count
+            ]
+            neighbours = [evaluate(k) for k in neighbour_k]
+            best = min(
+                [current, *neighbours], key=lambda row: row["adaptive_k_score"]
+            )
+            improvement = current["adaptive_k_score"] - best["adaptive_k_score"]
+            if int(best["mode_count"]) == current_k:
+                stop_reason = "local_minimum"
+                break
+            if improvement < minimum_score_improvement:
+                stop_reason = "improvement_below_threshold"
+                break
+            current_k = int(best["mode_count"])
+            path.append(current_k)
+        else:
+            evaluate(current_k)
 
     if not np.isfinite(cache[current_k]["adaptive_k_score"]):
         raise RuntimeError("All adaptive-K candidates failed.")
@@ -590,5 +660,6 @@ def select_adaptive_avmd_k(
         "evaluated_mode_counts": sorted(cache),
         "search_path": path,
         "stop_reason": stop_reason,
+        "search_strategy": search_strategy,
         "trials": trials,
     }
